@@ -1,0 +1,49 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique(map: "username")
+  password  String
+  role      String   @db.VarChar(20)
+  teams     Json?    // เปลี่ยนจาก team เป็น teams และใช้ Json array
+  createdAt DateTime @default(now()) @db.DateTime(0)
+  adserView Json?
+  
+  // Relationship to user preferences
+  preferences UserPreferences?
+}
+
+model UserPreferences {
+  id     Int  @id @default(autoincrement())
+  userId Int  @unique
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // UI Layout preferences
+  sidebarSettings Json? // เก็บ sidebar open/close state, width, etc.
+  
+  // Theme preferences
+  themeSettings Json? // เก็บ theme colors, background, primary colors, etc.
+  
+  // Filter preferences
+  filterSettings Json? // เก็บ dateRange, searchText, selectedTeam, selectedAdvertiser, etc.
+  
+  // Column visibility and width preferences
+  columnVisibility Json? // เก็บ ColumnVisibility state
+  columnWidths Json? // เก็บ column width settings
+  
+  // Color configuration preferences
+  colorConfiguration Json? // เก็บ ColorConfig state
+  
+  // Table preferences
+  tableSettings Json? // เก็บ sorting, pagination, etc.
+  
+  createdAt DateTime @default(now()) @db.DateTime(0)
+  updatedAt DateTime @updatedAt @db.DateTime(0)
+}
