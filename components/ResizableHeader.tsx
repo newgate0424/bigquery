@@ -20,7 +20,7 @@ export function ResizableHeader({
   sortKey,
   className = "",
   width,
-  minWidth = 60,
+  minWidth = 65,
   maxWidth = 500,
   onWidthChange,
   sortConfig,
@@ -120,22 +120,22 @@ export function ResizableHeader({
   return (
     <TableHead 
       ref={headerRef}
-      className={`relative border-r border-slate-200 bg-slate-50 dark:bg-slate-700 ${className} select-none overflow-hidden`}
-      style={{ width: `${currentWidth}px`, minWidth: `${currentWidth}px`, maxWidth: `${currentWidth}px` }}
+      className={`relative border-r border-slate-200 bg-slate-50 dark:bg-slate-700 ${className} select-none h-auto min-h-[60px] overflow-visible`}
+      style={{ width: `${currentWidth}px`, maxWidth: `${currentWidth}px` }}
     >
-      <div className="flex items-center justify-center relative overflow-hidden">
+      <div className="flex items-center justify-center relative min-h-[60px] py-2 overflow-visible">
         <button
           onClick={handleSort}
-          className="flex items-center justify-between w-full text-[14px] font-medium hover:text-blue-600 dark:hover:text-blue-400 transition-colors text-center px-1 min-w-0 text-slate-700 dark:text-slate-200"
+          className="flex items-center justify-between w-full text-[14px] font-medium hover:text-blue-600 dark:hover:text-blue-400 transition-colors text-center px-1 min-w-0 text-slate-700 dark:text-slate-200 h-full overflow-visible"
         >
-          <span className="flex-1 text-center truncate pr-1">{children}</span>
+          <span className="flex-1 text-center break-words pr-1 leading-tight py-1 overflow-visible whitespace-normal">{children}</span>
           <span className="flex-shrink-0">{getSortIcon()}</span>
         </button>
         
         {/* Resize Handle */}
         <div
           onMouseDown={handleMouseDown}
-          className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400 hover:w-1.5 transition-all duration-150 flex items-center justify-center group"
+          className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400 hover:w-1.5 transition-all duration-150 flex items-center justify-center group h-full"
           style={{ zIndex: 10 }}
         >
           <GripVertical className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />

@@ -1634,6 +1634,25 @@ export default function DataTable() {
     return isNaN(num) ? '0' : num.toLocaleString();
   };
 
+  // Format percentage with actual number in parentheses
+  const formatPercentageField = (value: unknown, total: unknown): React.ReactElement => {
+    const num = Number(value) || 0;
+    const totalNum = Number(total) || 0;
+    
+    if (totalNum === 0) return (
+      <span>
+        0% <span className="text-xs opacity-75">(0)</span>
+      </span>
+    );
+    
+    const percentage = ((num / totalNum) * 100).toFixed(1);
+    return (
+      <span>
+        {percentage}% <span className="text-xs opacity-75">({num.toLocaleString()})</span>
+      </span>
+    );
+  };
+
   // Pagination controls
   const totalItems = total;
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -2188,7 +2207,7 @@ export default function DataTable() {
                     <ResizableHeader 
                       sortKey="silent" 
                       className="text-center"
-                      width={columnWidths["silent"] || 75}
+                      width={columnWidths["silent"] || 65}
                       onWidthChange={(width) => handleColumnWidthChange("silent", width)}
                       sortConfig={sortConfig}
                       onSort={handleSort}
@@ -2200,7 +2219,7 @@ export default function DataTable() {
                     <ResizableHeader 
                       sortKey="duplicate" 
                       className="text-center"
-                      width={columnWidths["duplicate"] || 75}
+                      width={columnWidths["duplicate"] || 65}
                       onWidthChange={(width) => handleColumnWidthChange("duplicate", width)}
                       sortConfig={sortConfig}
                       onSort={handleSort}
@@ -2212,7 +2231,7 @@ export default function DataTable() {
                     <ResizableHeader 
                       sortKey="has_account" 
                       className="text-center"
-                      width={columnWidths["has_account"] || 75}
+                      width={columnWidths["has_account"] || 65}
                       onWidthChange={(width) => handleColumnWidthChange("has_account", width)}
                       sortConfig={sortConfig}
                       onSort={handleSort}
@@ -2224,7 +2243,7 @@ export default function DataTable() {
                     <ResizableHeader 
                       sortKey="spammer" 
                       className="text-center"
-                      width={columnWidths["spammer"] || 75}
+                      width={columnWidths["spammer"] || 65}
                       onWidthChange={(width) => handleColumnWidthChange("spammer", width)}
                       sortConfig={sortConfig}
                       onSort={handleSort}
@@ -2236,7 +2255,7 @@ export default function DataTable() {
                     <ResizableHeader 
                       sortKey="blocked" 
                       className="text-center"
-                      width={columnWidths["blocked"] || 75}
+                      width={columnWidths["blocked"] || 65}
                       onWidthChange={(width) => handleColumnWidthChange("blocked", width)}
                       sortConfig={sortConfig}
                       onSort={handleSort}
@@ -2248,7 +2267,7 @@ export default function DataTable() {
                     <ResizableHeader 
                       sortKey="under_18" 
                       className="text-center"
-                      width={columnWidths["under_18"] || 75}
+                      width={columnWidths["under_18"] || 65}
                       onWidthChange={(width) => handleColumnWidthChange("under_18", width)}
                       sortConfig={sortConfig}
                       onSort={handleSort}
@@ -2260,7 +2279,7 @@ export default function DataTable() {
                     <ResizableHeader 
                       sortKey="over_50" 
                       className="text-center"
-                      width={columnWidths["over_50"] || 75}
+                      width={columnWidths["over_50"] || 65}
                       onWidthChange={(width) => handleColumnWidthChange("over_50", width)}
                       sortConfig={sortConfig}
                       onSort={handleSort}
@@ -2272,7 +2291,7 @@ export default function DataTable() {
                     <ResizableHeader 
                       sortKey="foreigner" 
                       className="text-center"
-                      width={columnWidths["foreigner"] || 75}
+                      width={columnWidths["foreigner"] || 65}
                       onWidthChange={(width) => handleColumnWidthChange("foreigner", width)}
                       sortConfig={sortConfig}
                       onSort={handleSort}
@@ -2453,8 +2472,17 @@ export default function DataTable() {
                       />
                     )}
                     {visibleColumns.totalLoss && (
-                      <ExpandableCell
-                        content={formatNumericField(
+                      <td 
+                        className="w-[100px] min-w-[100px] max-w-[100px] text-center truncate border-r border-slate-200 p-1"
+                        style={{
+                          width: `${columnWidths["totalLoss"] || 100}px`,
+                          ...getColumnColor('totalLoss', 
+                            (row.silent || 0) + (row.duplicate || 0) + (row.has_account || 0) + (row.spammer || 0) + (row.blocked || 0) + (row.under_18 || 0) + (row.over_50 || 0) + (row.foreigner || 0),
+                            row.total_message || 0
+                          )
+                        }}
+                      >
+                        {formatPercentageField(
                           (row.silent || 0) + 
                           (row.duplicate || 0) + 
                           (row.has_account || 0) + 
@@ -2462,20 +2490,25 @@ export default function DataTable() {
                           (row.blocked || 0) + 
                           (row.under_18 || 0) + 
                           (row.over_50 || 0) + 
-                          (row.foreigner || 0)
+                          (row.foreigner || 0),
+                          row.total_message
                         )}
-                        rowIndex={index}
-                        column="Total Loss"
-                        className="w-[100px] min-w-[100px] max-w-[100px] text-center text-[14px] truncate border-r border-slate-200 p-1"
-                        style={getColumnColor('totalLoss', 
-                          (row.silent || 0) + (row.duplicate || 0) + (row.has_account || 0) + (row.spammer || 0) + (row.blocked || 0) + (row.under_18 || 0) + (row.over_50 || 0) + (row.foreigner || 0),
-                          row.total_message || 0
-                        )}
-                      />
+                      </td>
                     )}
                     {visibleColumns.qualityContact && (
-                      <ExpandableCell
-                        content={formatNumericField(
+                      <td 
+                        className="w-[100px] min-w-[100px] max-w-[100px] text-center truncate border-r border-slate-200 p-1"
+                        style={{
+                          width: `${columnWidths["qualityContact"] || 100}px`,
+                          ...getColumnColor('qualityContact', 
+                            (row.total_message || 0) - (
+                              (row.silent || 0) + (row.duplicate || 0) + (row.has_account || 0) + (row.spammer || 0) + (row.blocked || 0) + (row.under_18 || 0) + (row.over_50 || 0) + (row.foreigner || 0)
+                            ),
+                            row.total_message || 0
+                          )
+                        }}
+                      >
+                        {formatPercentageField(
                           (row.total_message || 0) - (
                             (row.silent || 0) + 
                             (row.duplicate || 0) + 
@@ -2485,17 +2518,10 @@ export default function DataTable() {
                             (row.under_18 || 0) + 
                             (row.over_50 || 0) + 
                             (row.foreigner || 0)
-                          )
+                          ),
+                          row.total_message
                         )}
-                        rowIndex={index}
-                        column="Quality Contact"
-                        className="w-[75px] min-w-[75px] max-w-[75px] text-center text-[14px] truncate border-r border-slate-200 p-1"
-                        style={getColumnColor('qualityContact', 
-                          (row.total_message || 0) - (
-                            (row.silent || 0) + (row.duplicate || 0) + (row.has_account || 0) + (row.spammer || 0) + (row.blocked || 0) + (row.under_18 || 0) + (row.over_50 || 0) + (row.foreigner || 0)
-                          )
-                        )}
-                      />
+                      </td>
                     )}
                     {visibleColumns.costPerMessage && (
                       <ExpandableCell
@@ -2564,76 +2590,92 @@ export default function DataTable() {
                       />
                     )}
                     {visibleColumns.silent && (
-                      <ExpandableCell
-                        content={formatNumericField(row.silent)}
-                        rowIndex={index}
-                        column="Silent"
-                        className="w-[75px] min-w-[75px] max-w-[75px] text-center text-[14px] truncate border-r border-slate-200 p-1"
-                        style={getColumnColor('silent', row.silent || 0, row.total_message || 0)}
-                      />
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{
+                          width: `${columnWidths["silent"] || 65}px`,
+                          ...getColumnColor('silent', row.silent || 0, row.total_message || 0)
+                        }}
+                      >
+                        {formatPercentageField(row.silent, row.total_message)}
+                      </td>
                     )}
                     {visibleColumns.duplicate && (
-                      <ExpandableCell
-                        content={formatNumericField(row.duplicate)}
-                        rowIndex={index}
-                        column="Duplicate"
-                        className="w-[75px] min-w-[75px] max-w-[75px] text-center text-[14px] truncate border-r border-slate-200 p-1"
-                        style={getColumnColor('duplicate', row.duplicate || 0, row.total_message || 0)}
-                      />
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{
+                          width: `${columnWidths["duplicate"] || 65}px`,
+                          ...getColumnColor('duplicate', row.duplicate || 0, row.total_message || 0)
+                        }}
+                      >
+                        {formatPercentageField(row.duplicate, row.total_message)}
+                      </td>
                     )}
                     {visibleColumns.hasAccount && (
-                      <ExpandableCell
-                        content={formatNumericField(row.has_account)}
-                        rowIndex={index}
-                        column="Has Account"
-                        className="w-[75px] min-w-[75px] max-w-[75px] text-center text-[14px] truncate border-r border-slate-200 p-1"
-                        style={getColumnColor('hasAccount', row.has_account || 0, row.total_message || 0)}
-                      />
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{
+                          width: `${columnWidths["has_account"] || 65}px`,
+                          ...getColumnColor('hasAccount', row.has_account || 0, row.total_message || 0)
+                        }}
+                      >
+                        {formatPercentageField(row.has_account, row.total_message)}
+                      </td>
                     )}
                     {visibleColumns.spammer && (
-                      <ExpandableCell
-                        content={formatNumericField(row.spammer)}
-                        rowIndex={index}
-                        column="Spammer"
-                        className="w-[75px] min-w-[75px] max-w-[75px] text-center text-[14px] truncate border-r border-slate-200 p-1"
-                        style={getColumnColor('spammer', row.spammer || 0, row.total_message || 0)}
-                      />
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{
+                          width: `${columnWidths["spammer"] || 65}px`,
+                          ...getColumnColor('spammer', row.spammer || 0, row.total_message || 0)
+                        }}
+                      >
+                        {formatPercentageField(row.spammer, row.total_message)}
+                      </td>
                     )}
                     {visibleColumns.blocked && (
-                      <ExpandableCell
-                        content={formatNumericField(row.blocked)}
-                        rowIndex={index}
-                        column="Blocked"
-                        className="w-[75px] min-w-[75px] max-w-[75px] text-center text-[14px] truncate border-r border-slate-200 p-1"
-                        style={getColumnColor('blocked', row.blocked || 0, row.total_message || 0)}
-                      />
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{
+                          width: `${columnWidths["blocked"] || 65}px`,
+                          ...getColumnColor('blocked', row.blocked || 0, row.total_message || 0)
+                        }}
+                      >
+                        {formatPercentageField(row.blocked, row.total_message)}
+                      </td>
                     )}
                     {visibleColumns.under18 && (
-                      <ExpandableCell
-                        content={formatNumericField(row.under_18)}
-                        rowIndex={index}
-                        column="Under 18"
-                        className="w-[75px] min-w-[75px] max-w-[75px] text-center text-[14px] truncate border-r border-slate-200 p-1"
-                        style={getColumnColor('under18', row.under_18 || 0, row.total_message || 0)}
-                      />
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{
+                          width: `${columnWidths["under_18"] || 65}px`,
+                          ...getColumnColor('under18', row.under_18 || 0, row.total_message || 0)
+                        }}
+                      >
+                        {formatPercentageField(row.under_18, row.total_message)}
+                      </td>
                     )}
                     {visibleColumns.over50 && (
-                      <ExpandableCell
-                        content={formatNumericField(row.over_50)}
-                        rowIndex={index}
-                        column="Over 50"
-                        className="w-[75px] min-w-[75px] max-w-[75px] text-center text-[14px] truncate border-r border-slate-200 p-1"
-                        style={getColumnColor('over50', row.over_50 || 0, row.total_message || 0)}
-                      />
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{
+                          width: `${columnWidths["over_50"] || 65}px`,
+                          ...getColumnColor('over50', row.over_50 || 0, row.total_message || 0)
+                        }}
+                      >
+                        {formatPercentageField(row.over_50, row.total_message)}
+                      </td>
                     )}
                     {visibleColumns.foreigner && (
-                      <ExpandableCell
-                        content={formatNumericField(row.foreigner)}
-                        rowIndex={index}
-                        column="Foreigner"
-                        className="w-[75px] min-w-[75px] max-w-[75px] text-center text-[14px] truncate border-slate-200 p-1"
-                        style={getColumnColor('foreigner', row.foreigner || 0, row.total_message || 0)}
-                      />
+                      <td 
+                        className="text-center truncate border-slate-200 p-1"
+                        style={{
+                          width: `${columnWidths["foreigner"] || 65}px`,
+                          ...getColumnColor('foreigner', row.foreigner || 0, row.total_message || 0)
+                        }}
+                      >
+                        {formatPercentageField(row.foreigner, row.total_message)}
+                      </td>
                     )}
                   </TableRow>
                 ))}
