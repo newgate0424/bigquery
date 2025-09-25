@@ -13,6 +13,7 @@ import {
 import FilterSidebar, { ColumnVisibility } from "./FilterSidebar";
 import { ResizableHeader } from "./ResizableHeader";
 import { useUserPreferences } from "@/lib/preferences";
+import { ChevronLeft, ChevronRight, Filter } from "lucide-react";
 
 interface DataRow {
   adser?: string;
@@ -260,6 +261,9 @@ export default function DataTable() {
   const [selectedTeam, setSelectedTeam] = useState<string>('');
   const [searchText, setSearchText] = useState<string>('');
   const [pageDisplayMode, setPageDisplayMode] = useState<string>('pageid');
+  
+  // Filter sidebar visibility state
+  const [isFilterVisible, setIsFilterVisible] = useState<boolean>(true);
   
   // Column visibility state - will be loaded from preferences
   const [visibleColumns, setVisibleColumns] = useState<ColumnVisibility>(getDefaultVisibleColumns());
@@ -535,27 +539,39 @@ export default function DataTable() {
   const saveColumnWidths = (widths: {[key: string]: number}) => {
     if (typeof window === 'undefined') return;
     try {
+      console.log('💾 Saving column widths:', widths);
+      
       // Save to localStorage for immediate response
       localStorage.setItem('bigquery-dashboard-column-widths', JSON.stringify(widths));
+      console.log('✅ Column widths saved to localStorage');
       
       // Save to database via preferences system
       if (updateColumnWidths) {
         updateColumnWidths(widths);
-        console.log('Column widths saved to database:', widths);
+        console.log('✅ Column widths sent to database via preferences');
+      } else {
+        console.warn('⚠️ updateColumnWidths function not available');
       }
     } catch (error) {
-      console.error('Error saving column widths:', error);
+      console.error('❌ Error saving column widths:', error);
     }
   };
 
   const loadColumnWidths = (): {[key: string]: number} => {
-    if (typeof window === 'undefined') return getDefaultColumnWidths();
+    if (typeof window === 'undefined') {
+      console.log('🔄 Server-side rendering - using default column widths');
+      return getDefaultColumnWidths();
+    }
+    
+    console.log('🔄 Loading column widths...');
     
     // First try to load from user preferences
     if (preferences?.columnWidths && Object.keys(preferences.columnWidths).length > 0) {
-      console.log('Loading column widths from database:', preferences.columnWidths);
+      console.log('✅ Loading column widths from database preferences:', preferences.columnWidths);
       // Merge with default widths to handle new columns that might be added
-      return { ...getDefaultColumnWidths(), ...preferences.columnWidths };
+      const merged = { ...getDefaultColumnWidths(), ...preferences.columnWidths };
+      console.log('🔄 Merged column widths:', merged);
+      return merged;
     }
     
     // Fallback to localStorage for backwards compatibility
@@ -563,20 +579,28 @@ export default function DataTable() {
       const saved = localStorage.getItem('bigquery-dashboard-column-widths');
       if (saved) {
         const parsed = JSON.parse(saved);
-        console.log('Loading column widths from localStorage, will sync to database:', parsed);
+        console.log('📦 Loading column widths from localStorage (will sync to database):', parsed);
         
         // Sync to database
         if (updateColumnWidths) {
+          console.log('🔄 Syncing localStorage column widths to database...');
           updateColumnWidths(parsed);
+        } else {
+          console.warn('⚠️ updateColumnWidths function not available for sync');
         }
         
         // Merge with default widths to handle new columns that might be added
-        return { ...getDefaultColumnWidths(), ...parsed };
+        const merged = { ...getDefaultColumnWidths(), ...parsed };
+        console.log('🔄 Merged column widths from localStorage:', merged);
+        return merged;
       }
     } catch (error) {
-      console.error('Error loading column widths:', error);
+      console.error('❌ Error loading column widths from localStorage:', error);
     }
-    return getDefaultColumnWidths();
+    
+    const defaultWidths = getDefaultColumnWidths();
+    console.log('🔄 Using default column widths:', defaultWidths);
+    return defaultWidths;
   };
 
   // Default column widths function
@@ -621,19 +645,42 @@ export default function DataTable() {
     foreigner: 75
   });
 
-  // Column width state
-  const [columnWidths, setColumnWidths] = useState<{[key: string]: number}>(
-    loadColumnWidths()
-  );
+  // Column width state - เริ่มด้วย default ก่อน แล้วค่อย sync จาก preferences
+  const [columnWidths, setColumnWidths] = useState<{[key: string]: number}>(() => {
+    const defaultWidths = getDefaultColumnWidths();
+    console.log('🏁 DataTable mounted - Initial column widths:', defaultWidths);
+    return defaultWidths;
+  });
 
-  // Handle column width change
+  // Load column widths on component mount and when preferences change
+  useEffect(() => {
+    // Don't load if still loading preferences
+    if (preferencesLoading) {
+      console.log('🔄 Still loading preferences, waiting...');
+      return;
+    }
+    
+    const loadAndSetColumnWidths = () => {
+      const loaded = loadColumnWidths();
+      console.log('🔄 Setting column widths - preferences loaded:', !!preferences, loaded);
+      setColumnWidths(loaded);
+    };
+    
+    loadAndSetColumnWidths();
+  }, [preferences?.columnWidths, preferencesLoading]); // Include loading state
+
+  // Handle column width change with enhanced logging
   const handleColumnWidthChange = useCallback((key: string, width: number) => {
+    console.log(`🔧 Column width change requested: ${key} = ${width}px`);
+    
     setColumnWidths(prev => {
       const newWidths = {
         ...prev,
         [key]: width
       };
-      // Save to localStorage
+      console.log(`📝 Updated columnWidths state:`, newWidths);
+      
+      // Save to localStorage and database
       saveColumnWidths(newWidths);
       return newWidths;
     });
@@ -657,7 +704,7 @@ export default function DataTable() {
       });
     }
   }, [preferences?.filterSettings?.sortSettings]);
-  
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [itemsPerPage, setItemsPerPage] = useState<number>(100);
@@ -1596,39 +1643,73 @@ export default function DataTable() {
 
   if (error) {
     return (
-      <div className="flex">
-        <FilterSidebar
-          dateRange={dateRange}
-          setDateRange={setDateRange}
-          selectedAdvertiser={selectedAdser}
-          setSelectedAdvertiser={setSelectedAdser}
-          selectedStatus={selectedStatus}
-          setSelectedStatus={setSelectedStatus}
-          selectedTeam={selectedTeam}
-          setSelectedTeam={setSelectedTeam}
-          searchText={searchText}
-          setSearchText={setSearchText}
-          pageDisplayMode={pageDisplayMode}
-          setPageDisplayMode={setPageDisplayMode}
-          visibleColumns={visibleColumns}
-          setVisibleColumns={setVisibleColumns}
-          colorConfig={colorConfig}
-          setColorConfig={setColorConfig}
-          advertisers={adsers}
-          statuses={statuses}
-          teams={teams}
-          teamAdvertiserMapping={memoizedTeamAdvertiserMapping} // ส่ง mapping
-          onRefresh={fetchData}
-          isLoading={loading}
-          itemsPerPage={itemsPerPage}
-          setItemsPerPage={setItemsPerPage}
-          setCurrentPage={setCurrentPage}
-          user={currentUser || undefined} // เพิ่ม user prop
-          sortConfig={sortConfig}
-        />
-        <div className="flex-1 p-6">
-          <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg shadow-sm">
-            <strong>Error:</strong> {error}
+      <div className="flex h-full bg-slate-50/40 dark:bg-slate-700/40">
+        {/* Filter Sidebar - Collapsible */}
+        <div className={`h-full flex-shrink-0 bg-slate-100/40 dark:bg-slate-800/40 border-r border-slate-300/30 dark:border-slate-700/30 overflow-hidden backdrop-blur-sm transition-all duration-300 ${
+          isFilterVisible ? 'w-80' : 'w-0'
+        }`}>
+          {isFilterVisible && (
+            <FilterSidebar
+              dateRange={dateRange}
+              setDateRange={setDateRange}
+              selectedAdvertiser={selectedAdser}
+              setSelectedAdvertiser={setSelectedAdser}
+              selectedStatus={selectedStatus}
+              setSelectedStatus={setSelectedStatus}
+              selectedTeam={selectedTeam}
+              setSelectedTeam={setSelectedTeam}
+              searchText={searchText}
+              setSearchText={setSearchText}
+              pageDisplayMode={pageDisplayMode}
+              setPageDisplayMode={setPageDisplayMode}
+              visibleColumns={visibleColumns}
+              setVisibleColumns={setVisibleColumns}
+              colorConfig={colorConfig}
+              setColorConfig={setColorConfig}
+              advertisers={adsers}
+              statuses={statuses}
+              teams={teams}
+              teamAdvertiserMapping={memoizedTeamAdvertiserMapping} // ส่ง mapping
+              onRefresh={fetchData}
+              isLoading={loading}
+              itemsPerPage={itemsPerPage}
+              setItemsPerPage={setItemsPerPage}
+              setCurrentPage={setCurrentPage}
+              user={currentUser || undefined} // เพิ่ม user prop
+              sortConfig={sortConfig}
+            />
+          )}
+        </div>
+
+        {/* Main Content with Error */}
+        <div className="flex-1 bg-white/20 dark:bg-slate-600/20 backdrop-blur-sm overflow-hidden flex flex-col max-h-screen">
+          {/* Filter Toggle Button */}
+          <div className="flex items-center justify-between p-4 bg-white/40 dark:bg-slate-800/40 border-b border-slate-200/30 dark:border-slate-700/30">
+            <button
+              onClick={() => setIsFilterVisible(!isFilterVisible)}
+              className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors border border-slate-300 dark:border-slate-600"
+              title={isFilterVisible ? 'ซ่อนฟิลเตอร์' : 'แสดงฟิลเตอร์'}
+            >
+              <Filter className="h-4 w-4" />
+              {isFilterVisible ? (
+                <>
+                  <ChevronLeft className="h-4 w-4" />
+                  <span className="text-sm font-medium">ซ่อนฟิลเตอร์</span>
+                </>
+              ) : (
+                <>
+                  <ChevronRight className="h-4 w-4" />
+                  <span className="text-sm font-medium">แสดงฟิลเตอร์</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Error Content */}
+          <div className="flex-1 p-6">
+            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg shadow-sm">
+              <strong>Error:</strong> {error}
+            </div>
           </div>
         </div>
       </div>
@@ -1637,9 +1718,14 @@ export default function DataTable() {
 
   return (
     <div className="flex h-full bg-slate-50/40 dark:bg-slate-700/40">
-      {/* Filter Sidebar - Static positioned as second column */}
-      <div className="w-80 h-full flex-shrink-0 bg-slate-100/40 dark:bg-slate-800/40 border-r border-slate-300/30 dark:border-slate-700/30 overflow-hidden backdrop-blur-sm">
-        <FilterSidebar
+      {/* Filter Sidebar - Collapsible with optimized performance */}
+      <div className={`h-full flex-shrink-0 bg-slate-100/40 dark:bg-slate-800/40 border-r border-slate-300/30 dark:border-slate-700/30 overflow-hidden backdrop-blur-sm transition-[width] duration-150 ease-out will-change-[width] ${
+        isFilterVisible ? 'w-80' : 'w-0'
+      }`}>
+        <div className={`w-80 h-full transform transition-transform duration-150 ease-out will-change-transform ${
+          isFilterVisible ? 'translate-x-0' : '-translate-x-full'
+        }`}>
+          <FilterSidebar
           dateRange={dateRange}
           setDateRange={setDateRange}
           selectedAdvertiser={selectedAdser}
@@ -1668,12 +1754,40 @@ export default function DataTable() {
           user={currentUser || undefined} // เพิ่ม user prop
           sortConfig={sortConfig}
         />
+        </div>
       </div>
 
       {/* Main Content - Third column */}
-      <div className="flex-1 p-4 bg-white/20 dark:bg-slate-600/20 backdrop-blur-sm overflow-hidden flex flex-col max-h-screen">
-        {/* Loading spinner */}
-        {loading && (
+      <div className="flex-1 bg-white/20 dark:bg-slate-600/20 backdrop-blur-sm overflow-hidden flex flex-col max-h-screen">
+        {/* Filter Toggle Button - Balanced design */}
+        <div className="flex items-center justify-between p-3 bg-white/30 dark:bg-slate-800/30 border-b border-slate-200/25 dark:border-slate-700/25">
+          <button
+            onClick={() => setIsFilterVisible(!isFilterVisible)}
+            className="flex items-center gap-2 px-2.5 py-1.5 text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100 hover:bg-slate-100/60 dark:hover:bg-slate-700/40 rounded-md transition-colors duration-150 text-sm border border-slate-200/40 dark:border-slate-600/30 hover:border-slate-300/60 dark:hover:border-slate-500/50"
+            title={isFilterVisible ? 'ซ่อนฟิลเตอร์' : 'แสดงฟิลเตอร์'}
+          >
+            <Filter className="h-4 w-4" />
+            {isFilterVisible ? (
+              <>
+                <ChevronLeft className="h-4 w-4" />
+                <span className="font-medium">ซ่อนฟิลเตอร์</span>
+              </>
+            ) : (
+              <>
+                <ChevronRight className="h-4 w-4" />
+                <span className="font-medium">แสดงฟิลเตอร์</span>
+              </>
+            )}
+          </button>
+          <div className="text-sm text-slate-600 dark:text-slate-400">
+            Monitor Dashboard
+          </div>
+        </div>
+
+        {/* Content Area */}
+        <div className="flex-1 p-4 overflow-hidden flex flex-col">
+          {/* Loading spinner */}
+          {loading && (
           <div className="text-center py-12">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400"></div>
             <p className="mt-4 text-lg text-gray-600">กำลังโหลดข้อมูล...</p>
@@ -2584,8 +2698,9 @@ export default function DataTable() {
             </button>
           </div>
         )}
+          </div>
+        </div>
       </div>
-    </div>
     </div>
   );
 }

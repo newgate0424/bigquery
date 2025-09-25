@@ -18,12 +18,38 @@ import useSWR from 'swr';
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Wifi, TrendingUp } from 'lucide-react';
+import { Wifi, TrendingUp, Settings, PlusCircle, XCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Input } from '@/components/ui/input';
+import { Label as FormLabel } from '@/components/ui/label';
+import { toast } from 'sonner';
 
 dayjs.extend(localizedFormat);
 dayjs.extend(relativeTime);
 dayjs.locale('th');
+
+// --- Interfaces & Types ---
+export type ThresholdRule = {
+    id: string;
+    operator: '>' | '<';
+    threshold: number;
+    color: string;
+};
+
+export type FieldColorSettings = {
+    textColorRules: ThresholdRule[];
+    backgroundColorRules: ThresholdRule[];
+};
+
+type AllTeamsColorSettings = Record<string, Record<string, FieldColorSettings>>;
+
+interface TeamColorSettingDB {
+    team_name: string;
+    field_name: string;
+    text_color_rules: string; // JSON string
+    background_color_rules: string; // JSON string
+}
 
 // ✅ Real-time Fetcher
 const fetcher = (url: string) => fetch(url).then((res) => {
@@ -113,6 +139,26 @@ const groupYAxisMax: { [key: string]: { cpm: number; costPerDeposit: number; cov
 
 const filterFrameClass = "inline-flex items-center gap-1 rounded-md border border-input bg-muted/50 h-9 px-2 shadow-sm";
 
+// Configurable fields for color settings
+const allConfigurableFields = {
+    net_inquiries: { name: 'ยอดทักสุทธิ', unit: null },
+    wasted_inquiries: { name: 'ยอดเสีย', unit: '%' },
+    cpm_cost_per_inquiry: { name: 'CPM', unit: '$' },
+    deposits_count: { name: 'ยอดเติม', unit: null },
+    cost_per_deposit: { name: 'ทุน/เติม', unit: '$' },
+    new_player_value_thb: { name: 'ยอดเล่นใหม่', unit: '฿' },
+    one_dollar_per_cover: { name: '1$/Cover', unit: '$' },
+    silent_inquiries: { name: 'เงียบ', unit: '%' },
+    repeat_inquiries: { name: 'ซ้ำ', unit: '%' },
+    existing_user_inquiries: { name: 'มียูส', unit: '%' },
+    spam_inquiries: { name: 'ก่อกวน', unit: '%' },
+    blocked_inquiries: { name: 'บล็อก', unit: '%' },
+    under_18_inquiries: { name: '<18', unit: '%' },
+    over_50_inquiries: { name: '>50', unit: '%' },
+    foreigner_inquiries: { name: 'ต่างชาติ', unit: '%' }
+};
+const initialColorSettings: AllTeamsColorSettings = {};
+
 // ... (Sub-components) ...
 const ExchangeRateSmall = memo(({ rate, isLoading, isFallback }: { rate: number | null, isLoading: boolean, isFallback: boolean }) => {
   if (isLoading) {
@@ -184,7 +230,7 @@ const StackedProgressCell = memo(({ net, wasted, total }: { net: number; wasted:
 });
 
 const FinancialMetric = memo(({ value, prefix = '', suffix = '' }: { value: number, prefix?: string, suffix?: string }) => (
-  <span className="font-semibold text-sm">
+  <span className="font-semibold text-sm whitespace-nowrap">
     {prefix}{formatNumber(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{suffix}
   </span>
 ));
@@ -199,7 +245,6 @@ const BreakdownCell = memo(({ value, total }: { value: number, total: number }) 
   );
 });
 
-// ✅ ปรับปรุง GroupedChart ให้ไม่กระพริบ
 const GroupedChart = memo(({
   title, data, yAxisLabel, loading, teamsToShow, chartType, dateForTarget, yAxisDomainMax, groupName, graphView
 }: {
@@ -318,6 +363,234 @@ const GroupedChart = memo(({
   );
 });
 
+// Color Settings Popover Component
+const ColorSettingsPopover = memo(({ groupName, teamNames, settings, onSave }: { 
+  groupName: string; 
+  teamNames: string[]; 
+  settings: AllTeamsColorSettings; 
+  onSave: (newSettings: AllTeamsColorSettings) => void; 
+}) => {
+    const [open, setOpen] = useState(false);
+    const [localSettings, setLocalSettings] = useState<AllTeamsColorSettings>({});
+    const [loading, setLoading] = useState(false);
+    const representativeTeam = teamNames[0] || '';
+
+    useEffect(() => { 
+        if (open) {
+            // Initialize with current settings or empty structure
+            const initialSettings = { ...settings };
+            if (!initialSettings[representativeTeam]) {
+                initialSettings[representativeTeam] = {};
+            }
+            setLocalSettings(initialSettings);
+        }
+    }, [settings, open, representativeTeam]);
+
+    const getFieldSettings = (fieldName: string): FieldColorSettings => {
+        return localSettings?.[representativeTeam]?.[fieldName] || { textColorRules: [], backgroundColorRules: [] };
+    };
+
+    const updateFieldSettings = (fieldName: string, newFieldSettings: FieldColorSettings) => {
+        setLocalSettings(prev => {
+            const newSettings = JSON.parse(JSON.stringify(prev));
+            if (!newSettings[representativeTeam]) {
+                newSettings[representativeTeam] = {};
+            }
+            newSettings[representativeTeam][fieldName] = newFieldSettings;
+            return newSettings;
+        });
+    };
+    
+    const handleRuleChange = (fieldName: string, ruleType: 'textColorRules' | 'backgroundColorRules', ruleId: string, property: keyof Omit<ThresholdRule, 'id'>, value: any) => {
+        const fieldSettings = getFieldSettings(fieldName);
+        const updatedRules = fieldSettings[ruleType].map(r => {
+            if (r.id === ruleId) {
+                if (property === 'threshold') {
+                    const numValue = parseFloat(value);
+                    return { ...r, [property]: isNaN(numValue) ? 0 : numValue };
+                }
+                return { ...r, [property]: value };
+            }
+            return r;
+        });
+        updateFieldSettings(fieldName, { ...fieldSettings, [ruleType]: updatedRules });
+    };
+
+    const handleAddRule = (fieldName: string, ruleType: 'textColorRules' | 'backgroundColorRules') => {
+        const fieldSettings = getFieldSettings(fieldName);
+        const newRule: ThresholdRule = { 
+            id: `rule_${Date.now()}_${Math.random()}`, 
+            operator: '>', 
+            threshold: 0.01, 
+            color: ruleType === 'textColorRules' ? '#000000' : '#ef4444' 
+        };
+        updateFieldSettings(fieldName, { ...fieldSettings, [ruleType]: [...fieldSettings[ruleType], newRule] });
+    };
+
+    const handleRemoveRule = (fieldName: string, ruleType: 'textColorRules' | 'backgroundColorRules', ruleId: string) => {
+        const fieldSettings = getFieldSettings(fieldName);
+        const updatedRules = fieldSettings[ruleType].filter(r => r.id !== ruleId);
+        updateFieldSettings(fieldName, { ...fieldSettings, [ruleType]: updatedRules });
+    };
+
+    const handleSave = async () => {
+        setLoading(true);
+        try {
+            const groupSettings = localSettings[representativeTeam] || {};
+            
+            // Apply settings to all teams in the group
+            const newSettingsForAllTeams = { ...settings };
+            teamNames.forEach(teamName => { 
+                newSettingsForAllTeams[teamName] = { ...groupSettings }; 
+            });
+            
+            // บันทึกลง localStorage ทันที
+            localStorage.setItem('overview-color-settings', JSON.stringify(newSettingsForAllTeams));
+            console.log('✅ Overview color settings saved to localStorage');
+            
+            // บันทึกลงฐานข้อมูล
+            const response = await fetch('/api/team-color-settings', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify({ teamNames, settings: groupSettings }) 
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.text();
+                console.warn(`Database save failed: ${errorData}`);
+                // แม้ database ล้มเหลว ก็ยังใช้การตั้งค่าจาก localStorage ได้
+                toast.warning(`บันทึกการตั้งค่าใน localStorage สำเร็จ แต่ฐานข้อมูลล้มเหลว: ${errorData}`);
+            } else {
+                const result = await response.json();
+                console.log('✅ Overview color settings saved to database:', result);
+                toast.success(`บันทึกการตั้งค่าสำหรับกลุ่ม ${groupName} สำเร็จแล้ว`);
+            }
+            
+            onSave(newSettingsForAllTeams);
+            setOpen(false);
+        } catch (error) {
+            console.error('Error saving overview color settings:', error);
+            // แม้ API ล้มเหลว ก็ยังพยายามบันทึกลง localStorage
+            try {
+                const groupSettings = localSettings[representativeTeam] || {};
+                const newSettingsForAllTeams = { ...settings };
+                teamNames.forEach(teamName => { 
+                    newSettingsForAllTeams[teamName] = { ...groupSettings }; 
+                });
+                localStorage.setItem('overview-color-settings', JSON.stringify(newSettingsForAllTeams));
+                onSave(newSettingsForAllTeams);
+                toast.warning(`บันทึกการตั้งค่าใน localStorage สำเร็จ แต่ไม่สามารถเชื่อมต่อฐานข้อมูลได้`);
+                setOpen(false);
+            } catch (localError) {
+                console.error('Error saving to localStorage:', localError);
+                toast.error(`เกิดข้อผิดพลาดในการบันทึก: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+    
+    return (
+        <>
+            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-accent hover:text-accent-foreground" onClick={() => setOpen(true)}>
+                <Settings className="h-4 w-4" />
+            </Button>
+            
+            {open && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center">
+                    {/* Backdrop */}
+                    <div 
+                        className="fixed inset-0 bg-black/50 backdrop-blur-sm" 
+                        onClick={() => setOpen(false)}
+                    />
+                    
+                    {/* Modal Content */}
+                    <div className="relative bg-background border rounded-lg shadow-lg w-[600px] max-w-[90vw] max-h-[90vh] flex flex-col">
+                        {/* Header */}
+                        <div className="p-4 border-b flex-shrink-0">
+                            <h4 className="font-medium text-lg">ตั้งค่าสีสำหรับกลุ่ม: {groupName}</h4>
+                            <p className="text-sm text-muted-foreground">การตั้งค่านี้จะใช้กับทีมทั้งหมดในกลุ่ม: {teamNames.join(', ')}</p>
+                        </div>
+                        
+                        {/* Scrollable Content */}
+                        <div className="flex-1 overflow-y-auto p-4">
+                            <div className="space-y-4">
+                        {Object.entries(allConfigurableFields).map(([key, { name, unit }]) => {
+                            const currentFieldSettings = getFieldSettings(key);
+                            return (
+                                <div key={key} className="p-3 border rounded-lg space-y-3">
+                                    <h5 className="font-medium text-sm">{name}</h5>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        {(['textColorRules', 'backgroundColorRules'] as const).map(ruleType => (
+                                            <div key={ruleType} className="space-y-2 p-3 rounded-md bg-muted/50">
+                                                <h6 className="text-xs font-semibold text-center">{ruleType === 'textColorRules' ? 'สีข้อความ' : 'สีพื้นหลัง'}</h6>
+                                                {currentFieldSettings[ruleType] && currentFieldSettings[ruleType].map((rule) => (
+                                                    <div key={rule.id} className="flex items-center gap-2">
+                                                        <Select value={rule.operator} onValueChange={(value: '>' | '<') => handleRuleChange(key, ruleType, rule.id, 'operator', value)}>
+                                                            <SelectTrigger className="w-16 h-8">
+                                                                <SelectValue />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value=">">&gt;</SelectItem>
+                                                                <SelectItem value="<">&lt;</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                        <Input 
+                                                            type="number" 
+                                                            value={rule.threshold ?? 0} 
+                                                            onChange={e => handleRuleChange(key, ruleType, rule.id, 'threshold', e.target.value)} 
+                                                            className="w-24 h-8 text-xs" 
+                                                            step="0.01"
+                                                            min="0.01"
+                                                            placeholder="0.01"
+                                                        />
+                                                        <span className="text-xs whitespace-nowrap">({unit || 'ค่า'})</span>
+                                                        <Input 
+                                                            type="color" 
+                                                            value={rule.color} 
+                                                            onChange={e => handleRuleChange(key, ruleType, rule.id, 'color', e.target.value)} 
+                                                            className="w-12 h-8 p-1 rounded cursor-pointer" 
+                                                        />
+                                                        <Button 
+                                                            variant="ghost" 
+                                                            size="icon" 
+                                                            className="h-8 w-8 shrink-0 hover:bg-destructive/10" 
+                                                            onClick={() => handleRemoveRule(key, ruleType, rule.id)}
+                                                        >
+                                                            <XCircle className="h-4 w-4 text-red-500"/>
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                                <Button 
+                                                    variant="outline" 
+                                                    size="sm" 
+                                                    className="w-full h-8 text-xs" 
+                                                    onClick={() => handleAddRule(key, ruleType)}
+                                                >
+                                                    <PlusCircle className="h-3 w-3 mr-1"/> เพิ่มเงื่อนไข
+                                                </Button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                            </div>
+                        </div>
+                        
+                        {/* Footer */}
+                        <div className="p-4 border-t flex-shrink-0 bg-background">
+                            <Button onClick={handleSave} disabled={loading} className="w-full">
+                                {loading ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า'}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
+    );
+});
+
 export default function OverviewPage() {
   const [isClient, setIsClient] = useState(false);
   const [chartData, setChartData] = useState<{ cpm: TransformedChartData[], costPerDeposit: TransformedChartData[], deposits: TransformedChartData[], cover: TransformedChartData[] }>({ cpm: [], costPerDeposit: [], deposits: [], cover: [] });
@@ -325,13 +598,128 @@ export default function OverviewPage() {
   const [graphView, setGraphView] = useState<'daily' | 'monthly'>('daily');
   const [graphYear, setGraphYear] = useState<number>(dayjs().year());
   const [graphMonth, setGraphMonth] = useState<number>(dayjs().month());
+  const [colorSettings, setColorSettings] = useState<AllTeamsColorSettings>(initialColorSettings);
   
   // ✅ เพิ่ม Real-time state (ตลอดเวลา)
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  
+  // ✅ เพิ่ม showBreakdown state สำหรับซ่อน/แสดงคอลั่ม
+  const [showBreakdown, setShowBreakdown] = useState(true);
+
+  // Color settings functions
+  const loadColorSettings = async () => {
+    try {
+        // ลองโหลดจาก localStorage ก่อน
+        const localSettings = localStorage.getItem('overview-color-settings');
+        if (localSettings) {
+            try {
+                const parsedLocalSettings = JSON.parse(localSettings);
+                setColorSettings(parsedLocalSettings);
+                console.log('✅ Overview color settings loaded from localStorage');
+            } catch (e) {
+                console.error('Error parsing localStorage overview color settings:', e);
+            }
+        }
+
+        // จากนั้นโหลดจากฐานข้อมูล
+        const response = await fetch('/api/team-color-settings');
+        if (response.ok) {
+            const dbSettings: TeamColorSettingDB[] = await response.json();
+            const newSettings: AllTeamsColorSettings = {};
+            dbSettings.forEach(setting => {
+                if (!newSettings[setting.team_name]) newSettings[setting.team_name] = {};
+                try {
+                    const textRules = JSON.parse(setting.text_color_rules || '[]');
+                    const bgRules = JSON.parse(setting.background_color_rules || '[]');
+                    newSettings[setting.team_name][setting.field_name] = {
+                        textColorRules: Array.isArray(textRules) ? textRules : [],
+                        backgroundColorRules: Array.isArray(bgRules) ? bgRules : [],
+                    };
+                } catch (e) {
+                    console.error("Could not parse rules for", setting, e);
+                    newSettings[setting.team_name][setting.field_name] = { textColorRules: [], backgroundColorRules: [] };
+                }
+            });
+            setColorSettings(newSettings);
+            
+            // บันทึกลง localStorage สำหรับการใช้งานครั้งต่อไป
+            localStorage.setItem('overview-color-settings', JSON.stringify(newSettings));
+            console.log('✅ Overview color settings loaded from database and synced to localStorage');
+        }
+    } catch (error) { 
+        console.error('Error loading overview color settings:', error); 
+        // หาก API ล้มเหลว ให้ใช้ localStorage
+        const localSettings = localStorage.getItem('overview-color-settings');
+        if (localSettings) {
+            try {
+                const parsedLocalSettings = JSON.parse(localSettings);
+                setColorSettings(parsedLocalSettings);
+                console.log('⚠️ Using localStorage overview color settings due to API error');
+            } catch (e) {
+                console.error('Error parsing localStorage overview color settings as fallback:', e);
+            }
+        }
+    }
+  };
+  
+  const getTextColorForBackground = (hexColor: string): string => {
+    if (!hexColor || hexColor.length < 7) return '#000000';
+    const r = parseInt(hexColor.slice(1, 3), 16), g = parseInt(hexColor.slice(3, 5), 16), b = parseInt(hexColor.slice(5, 7), 16);
+    return (0.299 * r + 0.587 * g + 0.114 * b) > 128 ? '#000000' : '#FFFFFF';
+  };
+
+  const getCellStyle = (teamName: string, fieldName: keyof typeof allConfigurableFields, value: number, totalForPercentage: number | null = null): React.CSSProperties => {
+    const fieldSettings = colorSettings[teamName]?.[fieldName];
+    if (!fieldSettings) return {};
+    
+    const { textColorRules = [], backgroundColorRules = [] } = fieldSettings;
+    if (textColorRules.length === 0 && backgroundColorRules.length === 0) return {};
+
+    const fieldConfig = allConfigurableFields[fieldName];
+    const isPercentage = fieldConfig.unit === '%';
+    const numericValue = Number(value);
+    if (isNaN(numericValue)) return {};
+
+    const comparisonValue = isPercentage && totalForPercentage && totalForPercentage > 0 ? (numericValue / totalForPercentage) * 100 : numericValue;
+    
+    const findWinningColor = (rules: ThresholdRule[]): string | null => {
+        const moreThanRules = rules.filter(r => r.operator === '>').sort((a, b) => b.threshold - a.threshold);
+        const lessThanRules = rules.filter(r => r.operator === '<').sort((a, b) => a.threshold - b.threshold);
+        for (const rule of moreThanRules) if (comparisonValue > rule.threshold) return rule.color;
+        for (const rule of lessThanRules) if (comparisonValue < rule.threshold) return rule.color;
+        return null;
+    };
+
+    const winningTextColor = findWinningColor(textColorRules);
+    const winningBgColor = findWinningColor(backgroundColorRules);
+
+    const style: React.CSSProperties = {};
+
+    if (winningTextColor) {
+        style.color = winningTextColor;
+    }
+
+    if (winningBgColor) {
+        style.backgroundColor = `${winningBgColor}20`; // Add transparency
+        style.borderRadius = '4px';
+        style.padding = '1px 4px';
+        style.display = 'inline-block';
+        style.whiteSpace = 'nowrap';
+        style.maxWidth = '100%';
+        style.overflow = 'hidden';
+        style.textOverflow = 'ellipsis';
+        if (!winningTextColor) { // Only adjust text color if not explicitly set
+            style.color = getTextColorForBackground(winningBgColor);
+        }
+    }
+
+    return style;
+  };
 
   useEffect(() => {
     setIsClient(true);
+    loadColorSettings(); // โหลดการตั้งค่าสี
 
     const savedDate = localStorage.getItem('dateRangeFilterBetaV6Table');
     if (savedDate) {
@@ -647,11 +1035,6 @@ export default function OverviewPage() {
           if (teamsInGroup.length === 0) {
             return (
               <Card key={groupName} className="p-4 md:p-6 relative">
-                {groupName === 'Lotto' && (
-                  <div className="absolute top-4 right-4">
-                    <ExchangeRateSmall rate={exchangeRate} isLoading={isRateLoading} isFallback={isRateFallback} />
-                  </div>
-                )}
                 <h2 className="text-2xl font-bold mb-4">{groupName}</h2>
                 <p className="text-muted-foreground">ไม่มีข้อมูลสำหรับกลุ่มนี้ในช่วงวันที่ที่เลือก</p>
               </Card>
@@ -661,15 +1044,25 @@ export default function OverviewPage() {
           const groupMaxValues = groupYAxisMax[groupName as keyof typeof groupYAxisMax];
 
           return (
-            <Card key={groupName} className="p-4 md:p-6 relative">
-              {groupName === 'Lotto' && (
-                <div className="absolute top-4 right-4">
-                  <ExchangeRateSmall rate={exchangeRate} isLoading={isRateLoading} isFallback={isRateFallback} />
+            <Card key={groupName} className="p-0">
+              <div className="flex flex-row items-center justify-between mb-4 px-4 pt-4 pb-2">
+                <h2 className="text-2xl font-bold">{groupName}</h2>
+                <div className="flex items-center gap-2">
+                  {groupName === 'Lotto' && <ExchangeRateSmall rate={exchangeRate} isLoading={isRateLoading} isFallback={isRateFallback} />}
+                  <ColorSettingsPopover groupName={groupName} teamNames={teamNames} settings={colorSettings} onSave={setColorSettings} />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowBreakdown(!showBreakdown)}
+                    className="h-8"
+                  >
+                    {showBreakdown ? <ChevronLeft className="h-4 w-4 mr-1" /> : <ChevronRight className="h-4 w-4 mr-1" />}
+                    {showBreakdown ? 'ซ่อน' : 'ละเอียด'}
+                  </Button>
                 </div>
-              )}
-              <h2 className="text-2xl font-bold mb-4">{groupName}</h2>
+              </div>
 
-              <div className="space-y-6">
+              <div className="space-y-6 px-0 pb-0">
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -678,19 +1071,21 @@ export default function OverviewPage() {
                         <TableHead>ยอดทัก / แผน</TableHead>
                         <TableHead>ใช้จ่าย / แผน</TableHead>
                         <TableHead>ยอดทักสุทธิ / เสีย</TableHead>
-                        <TableHead className="text-right">CPM</TableHead>
-                        <TableHead className="text-right">ยอดเติม</TableHead>
-                        <TableHead className="text-right">ทุน/เติม</TableHead>
-                        <TableHead className="text-right">ยอดเล่นใหม่</TableHead>
-                        <TableHead className="text-right">1$ / Cover</TableHead>
-                        <TableHead className="text-center min-w-[70px]">ทักเงียบ</TableHead>
-                        <TableHead className="text-center min-w-[70px]">ทักซ้ำ</TableHead>
-                        <TableHead className="text-center min-w-[70px]">มียูส</TableHead>
-                        <TableHead className="text-center min-w-[70px]">ก่อกวน</TableHead>
-                        <TableHead className="text-center min-w-[70px]">บล็อก</TableHead>
-                        <TableHead className="text-center min-w-[70px]">ต่ำกว่า18</TableHead>
-                        <TableHead className="text-center min-w-[70px]">อายุเกิน50</TableHead>
-                        <TableHead className="text-center min-w-[70px]">ต่างชาติ</TableHead>
+                        <TableHead className="text-right min-w-[80px]">CPM</TableHead>
+                        <TableHead className="text-right min-w-[70px]">ยอดเติม</TableHead>
+                        <TableHead className="text-right min-w-[80px]">ทุน/เติม</TableHead>
+                        <TableHead className="text-right min-w-[120px]">ยอดเล่นใหม่</TableHead>
+                        <TableHead className="text-right min-w-[90px]">1$ / Cover</TableHead>
+                        {showBreakdown && <>
+                          <TableHead className="text-center min-w-[70px]">ทักเงียบ</TableHead>
+                          <TableHead className="text-center min-w-[70px]">ทักซ้ำ</TableHead>
+                          <TableHead className="text-center min-w-[70px]">มียูส</TableHead>
+                          <TableHead className="text-center min-w-[70px]">ก่อกวน</TableHead>
+                          <TableHead className="text-center min-w-[70px]">บล็อก</TableHead>
+                          <TableHead className="text-center min-w-[70px]">ต่ำกว่า18</TableHead>
+                          <TableHead className="text-center min-w-[70px]">อายุเกิน50</TableHead>
+                          <TableHead className="text-center min-w-[70px]">ต่างชาติ</TableHead>
+                        </>}
                       </TableRow>
                     </TableHeader>
 
@@ -719,19 +1114,21 @@ export default function OverviewPage() {
                               <TableCell><div className="text-sm"><ProgressCell value={team.total_inquiries ?? 0} total={team.planned_inquiries ?? 0} /></div></TableCell>
                               <TableCell><div className="text-sm"><ProgressCell value={team.actual_spend ?? 0} total={team.planned_daily_spend ?? 0} isCurrency /></div></TableCell>
                               <TableCell><div className="text-sm"><StackedProgressCell net={team.net_inquiries ?? 0} wasted={team.wasted_inquiries ?? 0} total={team.total_inquiries ?? 0} /></div></TableCell>
-                              <TableCell className="text-right"><div className="text-sm"><FinancialMetric value={team.cpm_cost_per_inquiry ?? 0} prefix="$" /></div></TableCell>
-                              <TableCell className="text-right font-semibold"><div className="text-sm number-transition">{formatNumber(team.deposits_count ?? 0)}</div></TableCell>
-                              <TableCell className="text-right"><div className="text-sm"><FinancialMetric value={team.cost_per_deposit ?? 0} prefix="$" /></div></TableCell>
-                              <TableCell className="text-right"><div className="text-sm"><FinancialMetric value={team.new_player_value_thb ?? 0} prefix="฿" /></div></TableCell>
-                              <TableCell className="text-right"><div className="text-sm"><FinancialMetric value={team.one_dollar_per_cover ?? 0} prefix="$" /></div></TableCell>
-                              <TableCell><div className="text-sm"><BreakdownCell value={team.silent_inquiries ?? 0} total={team.total_inquiries ?? 0} /></div></TableCell>
-                              <TableCell><div className="text-sm"><BreakdownCell value={team.repeat_inquiries ?? 0} total={team.total_inquiries ?? 0} /></div></TableCell>
-                              <TableCell><div className="text-sm"><BreakdownCell value={team.existing_user_inquiries ?? 0} total={team.total_inquiries ?? 0} /></div></TableCell>
-                              <TableCell><div className="text-sm"><BreakdownCell value={team.spam_inquiries ?? 0} total={team.total_inquiries ?? 0} /></div></TableCell>
-                              <TableCell><div className="text-sm"><BreakdownCell value={team.blocked_inquiries ?? 0} total={team.total_inquiries ?? 0} /></div></TableCell>
-                              <TableCell><div className="text-sm"><BreakdownCell value={team.under_18_inquiries ?? 0} total={team.total_inquiries ?? 0} /></div></TableCell>
-                              <TableCell><div className="text-sm"><BreakdownCell value={team.over_50_inquiries ?? 0} total={team.total_inquiries ?? 0} /></div></TableCell>
-                              <TableCell><div className="text-sm"><BreakdownCell value={team.foreigner_inquiries ?? 0} total={team.total_inquiries ?? 0} /></div></TableCell>
+                              <TableCell className="text-right"><div className="text-sm"><span style={getCellStyle(team.team_name, 'cpm_cost_per_inquiry', team.cpm_cost_per_inquiry ?? 0)}><FinancialMetric value={team.cpm_cost_per_inquiry ?? 0} prefix="$" /></span></div></TableCell>
+                              <TableCell className="text-right font-semibold"><div className="text-sm number-transition"><span style={getCellStyle(team.team_name, 'deposits_count', team.deposits_count ?? 0)}>{formatNumber(team.deposits_count ?? 0)}</span></div></TableCell>
+                              <TableCell className="text-right"><div className="text-sm"><span style={getCellStyle(team.team_name, 'cost_per_deposit', team.cost_per_deposit ?? 0)}><FinancialMetric value={team.cost_per_deposit ?? 0} prefix="$" /></span></div></TableCell>
+                              <TableCell className="text-right min-w-[120px] pr-2"><div className="text-sm"><span style={getCellStyle(team.team_name, 'new_player_value_thb', team.new_player_value_thb ?? 0)}><FinancialMetric value={team.new_player_value_thb ?? 0} prefix="฿" /></span></div></TableCell>
+                              <TableCell className="text-right"><div className="text-sm"><span style={getCellStyle(team.team_name, 'one_dollar_per_cover', team.one_dollar_per_cover ?? 0)}><FinancialMetric value={team.one_dollar_per_cover ?? 0} prefix="$" /></span></div></TableCell>
+                              {showBreakdown && <>
+                                <TableCell><div className="text-sm"><span style={getCellStyle(team.team_name, 'silent_inquiries', team.silent_inquiries ?? 0, team.total_inquiries ?? 0)}><BreakdownCell value={team.silent_inquiries ?? 0} total={team.total_inquiries ?? 0} /></span></div></TableCell>
+                                <TableCell><div className="text-sm"><span style={getCellStyle(team.team_name, 'repeat_inquiries', team.repeat_inquiries ?? 0, team.total_inquiries ?? 0)}><BreakdownCell value={team.repeat_inquiries ?? 0} total={team.total_inquiries ?? 0} /></span></div></TableCell>
+                                <TableCell><div className="text-sm"><span style={getCellStyle(team.team_name, 'existing_user_inquiries', team.existing_user_inquiries ?? 0, team.total_inquiries ?? 0)}><BreakdownCell value={team.existing_user_inquiries ?? 0} total={team.total_inquiries ?? 0} /></span></div></TableCell>
+                                <TableCell><div className="text-sm"><span style={getCellStyle(team.team_name, 'spam_inquiries', team.spam_inquiries ?? 0, team.total_inquiries ?? 0)}><BreakdownCell value={team.spam_inquiries ?? 0} total={team.total_inquiries ?? 0} /></span></div></TableCell>
+                                <TableCell><div className="text-sm"><span style={getCellStyle(team.team_name, 'blocked_inquiries', team.blocked_inquiries ?? 0, team.total_inquiries ?? 0)}><BreakdownCell value={team.blocked_inquiries ?? 0} total={team.total_inquiries ?? 0} /></span></div></TableCell>
+                                <TableCell><div className="text-sm"><span style={getCellStyle(team.team_name, 'under_18_inquiries', team.under_18_inquiries ?? 0, team.total_inquiries ?? 0)}><BreakdownCell value={team.under_18_inquiries ?? 0} total={team.total_inquiries ?? 0} /></span></div></TableCell>
+                                <TableCell><div className="text-sm"><span style={getCellStyle(team.team_name, 'over_50_inquiries', team.over_50_inquiries ?? 0, team.total_inquiries ?? 0)}><BreakdownCell value={team.over_50_inquiries ?? 0} total={team.total_inquiries ?? 0} /></span></div></TableCell>
+                                <TableCell><div className="text-sm"><span style={getCellStyle(team.team_name, 'foreigner_inquiries', team.foreigner_inquiries ?? 0, team.total_inquiries ?? 0)}><BreakdownCell value={team.foreigner_inquiries ?? 0} total={team.total_inquiries ?? 0} /></span></div></TableCell>
+                              </>}
                             </TableRow>
                           );
                         })}

@@ -93,6 +93,11 @@ export function Header() {
       
       // ลบข้อมูลออกจากระบบไม่ว่าผลลัพธ์ของ API จะเป็นอย่างไร
       localStorage.removeItem('user')
+      localStorage.removeItem('token')
+      
+      // ส่ง event ให้ components อื่นรู้ว่า user ได้ logout แล้ว
+      window.dispatchEvent(new CustomEvent('userLoggedOut'));
+      
       setUser(null)
       router.push('/login')
       
@@ -100,6 +105,11 @@ export function Header() {
       console.error('Logout error:', error)
       // แม้เกิด error ก็ให้ลบข้อมูลและไป login
       localStorage.removeItem('user')
+      localStorage.removeItem('token')
+      
+      // ส่ง event ให้ components อื่นรู้ว่า user ได้ logout แล้ว
+      window.dispatchEvent(new CustomEvent('userLoggedOut'));
+      
       setUser(null)
       router.push('/login')
     } finally {

@@ -25,30 +25,42 @@ export const useCookieConsent = () => {
 
   // Load consent data from localStorage on mount
   useEffect(() => {
+    console.log('🍪 [Hook] Loading cookie consent from localStorage...');
     try {
       const savedConsent = localStorage.getItem(COOKIE_CONSENT_KEY);
+      console.log('🍪 [Hook] Raw consent data:', savedConsent);
+      
       if (savedConsent) {
         const parsedConsent: CookieConsentData = JSON.parse(savedConsent);
+        console.log('🍪 [Hook] Parsed consent data:', parsedConsent);
         
         // Check if consent version is current
         if (parsedConsent.version === COOKIE_CONSENT_VERSION) {
+          console.log('🍪 [Hook] Consent version is current, setting hasConsented = true');
           setConsentData(parsedConsent);
           setHasConsented(true);
         } else {
+          console.log('🍪 [Hook] Consent version outdated, clearing and setting hasConsented = false');
           // Clear outdated consent
           localStorage.removeItem(COOKIE_CONSENT_KEY);
           setHasConsented(false);
         }
       } else {
+        console.log('🍪 [Hook] No consent data found, setting hasConsented = false');
         setHasConsented(false);
       }
     } catch (error) {
-      console.error('Error loading cookie consent:', error);
+      console.error('🍪 [Hook] Error loading cookie consent:', error);
       setHasConsented(false);
     } finally {
       setLoading(false);
     }
   }, []);
+
+  // Debug: Track state changes
+  useEffect(() => {
+    console.log('🍪 [Hook] State changed - hasConsented:', hasConsented, 'loading:', loading);
+  }, [hasConsented, loading]);
 
   // Save consent preferences
   const saveConsent = (preferences: CookiePreferences) => {

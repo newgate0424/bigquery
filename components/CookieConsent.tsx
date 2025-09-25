@@ -15,6 +15,7 @@ const CookieConsent: React.FC<CookieConsentProps> = ({ onAccept, onDecline }) =>
   const { hasConsented, loading, saveConsent } = useCookieConsent();
   const [isVisible, setIsVisible] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [isUserAuthenticated, setIsUserAuthenticated] = useState(false);
   const [preferences, setPreferences] = useState<CookiePreferences>({
     necessary: true, // Always required
     analytics: true,
@@ -22,15 +23,111 @@ const CookieConsent: React.FC<CookieConsentProps> = ({ onAccept, onDecline }) =>
     preferences: true,
   });
 
+  // Check if user is authenticated
   useEffect(() => {
-    if (!loading && hasConsented === false) {
+    const checkAuthStatus = () => {
+      try {
+        const token = localStorage.getItem('token');
+        const user = localStorage.getItem('user');
+        const isAuth = !!(token && user);
+        console.log('🍪 Checking auth status:', { 
+          hasToken: !!token, 
+          hasUser: !!user, 
+          isAuthenticated: isAuth 
+        });
+        setIsUserAuthenticated(isAuth);
+        
+        // If user just became authenticated, wait a bit before checking consent visibility
+        if (isAuth && !isUserAuthenticated) {
+          console.log('🍪 User just logged in, will recheck consent after delay');
+        }
+      } catch (error) {
+        console.error('🍪 Error checking auth status:', error);
+        setIsUserAuthenticated(false);
+      }
+    };
+
+    // Check auth status on mount
+    checkAuthStatus();
+
+    // Listen for login events
+    const handleUserLoggedIn = () => {
+      console.log('🍪 User login event received - will check consent after delay');
+      // Re-check auth status after a delay to ensure all data is loaded
+      setTimeout(() => {
+        console.log('🍪 Delayed auth status check after login');
+        checkAuthStatus();
+      }, 500);
+    };
+
+    // Listen for logout events
+    const handleUserLoggedOut = () => {
+      console.log('🍪 User logout event received - resetting state');
+      setIsUserAuthenticated(false);
+      setIsVisible(false); // Hide banner immediately on logout
+    };
+
+    // Listen for storage changes (in case of login/logout in other tabs)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'token' || e.key === 'user') {
+        console.log('🍪 Storage changed for auth keys, rechecking status');
+        checkAuthStatus();
+      }
+    };
+
+    window.addEventListener('userLoggedIn', handleUserLoggedIn);
+    window.addEventListener('userLoggedOut', handleUserLoggedOut);
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('userLoggedIn', handleUserLoggedIn);
+      window.removeEventListener('userLoggedOut', handleUserLoggedOut);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    console.log('🍪 CookieConsent visibility check:', {
+      loading,
+      hasConsented,
+      isUserAuthenticated,
+      isVisible
+    });
+
+    // Don't do anything if still loading consent data
+    if (loading) {
+      console.log('🍪 Still loading consent data, waiting...');
+      return;
+    }
+
+    // If user has already consented (true), never show banner
+    if (hasConsented === true) {
+      console.log('🍪 User has consented, hiding banner');
+      if (isVisible) {
+        setIsVisible(false);
+      }
+      return;
+    }
+
+    // Only show banner if:
+    // 1. User is authenticated
+    // 2. User has explicitly NOT consented (false)
+    // 3. Banner is not already visible
+    if (isUserAuthenticated && hasConsented === false && !isVisible) {
+      console.log('🍪 Should show cookie consent banner - user authenticated but not consented');
       // Show banner after a short delay for better UX
       const timer = setTimeout(() => {
         setIsVisible(true);
-      }, 1000);
+      }, 1500); // Increased delay to ensure everything is loaded
       return () => clearTimeout(timer);
     }
-  }, [loading, hasConsented]);
+    
+    // Hide banner if user logs out
+    if (!isUserAuthenticated && isVisible) {
+      console.log('🍪 User logged out, hiding banner');
+      setIsVisible(false);
+    }
+  }, [loading, hasConsented, isUserAuthenticated, isVisible]);
 
   const handleAcceptAll = () => {
     const allAccepted: CookiePreferences = {
@@ -79,8 +176,28 @@ const CookieConsent: React.FC<CookieConsentProps> = ({ onAccept, onDecline }) =>
     }));
   };
 
-  // Don't render if loading or already consented
-  if (loading || hasConsented || !isVisible) return null;
+  // Don't render if:
+  // 1. Still loading consent data
+  // 2. User has already consented (true)
+  // 3. User is not authenticated  
+  // 4. Banner is not set to be visible
+  const shouldRender = !loading && hasConsented === false && isUserAuthenticated && isVisible;
+  
+  console.log('🍪 [Component] Final render decision:', {
+    loading,
+    hasConsented,
+    isUserAuthenticated,
+    isVisible,
+    shouldRender,
+    reason: loading ? 'loading' : 
+            hasConsented === true ? 'already consented' :
+            hasConsented === null ? 'consent unknown' :
+            !isUserAuthenticated ? 'not authenticated' :
+            !isVisible ? 'not visible' :
+            'should show'
+  });
+  
+  if (!shouldRender) return null;
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 p-4 pointer-events-none">

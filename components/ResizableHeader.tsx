@@ -30,7 +30,14 @@ export function ResizableHeader({
   const [isResizing, setIsResizing] = useState(false)
   const [startX, setStartX] = useState(0)
   const [startWidth, setStartWidth] = useState(0)
+  const [currentWidth, setCurrentWidth] = useState(width)
   const headerRef = useRef<HTMLTableCellElement>(null)
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Update current width when prop changes
+  useEffect(() => {
+    setCurrentWidth(width)
+  }, [width])
 
   const getSortIcon = () => {
     if (sortConfig.key === sortKey) {
@@ -48,19 +55,46 @@ export function ResizableHeader({
     e.stopPropagation()
     setIsResizing(true)
     setStartX(e.clientX)
-    setStartWidth(width)
-  }, [width])
+    setStartWidth(currentWidth)
+  }, [currentWidth])
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isResizing) return
     
     const deltaX = e.clientX - startX
     const newWidth = Math.max(minWidth, Math.min(maxWidth, startWidth + deltaX))
-    onWidthChange(newWidth)
+    setCurrentWidth(newWidth)
+    
+    // Clear existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
+    }
+    
+    // Throttle the onWidthChange callback to avoid too frequent updates
+    saveTimeoutRef.current = setTimeout(() => {
+      onWidthChange(newWidth)
+      console.log(`🔄 Column ${sortKey} width changed to: ${newWidth}px`)
+    }, 100) // 100ms throttle
   }, [isResizing, startX, startWidth, minWidth, maxWidth, onWidthChange, sortKey])
 
   const handleMouseUp = useCallback(() => {
     setIsResizing(false)
+    
+    // Final save on mouse up
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
+      onWidthChange(currentWidth)
+      console.log(`💾 Final column ${sortKey} width saved: ${currentWidth}px`)
+    }
+  }, [currentWidth, onWidthChange, sortKey])
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+    }
   }, [])
 
   useEffect(() => {
@@ -87,7 +121,7 @@ export function ResizableHeader({
     <TableHead 
       ref={headerRef}
       className={`relative border-r border-slate-200 bg-slate-50 dark:bg-slate-700 ${className} select-none overflow-hidden`}
-      style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }}
+      style={{ width: `${currentWidth}px`, minWidth: `${currentWidth}px`, maxWidth: `${currentWidth}px` }}
     >
       <div className="flex items-center justify-center relative overflow-hidden">
         <button

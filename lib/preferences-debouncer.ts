@@ -51,6 +51,20 @@ class PreferencesDebouncer {
     console.log(`Set timeout for ${type} with ${this.DEBOUNCE_DELAY}ms delay`);
   }
 
+  // Cancel all pending updates (useful on logout)
+  cancelAll(): void {
+    console.log(`Cancelling all ${this.timeouts.size} pending preference updates`);
+    
+    for (const [type, timeout] of this.timeouts.entries()) {
+      clearTimeout(timeout);
+      console.log(`Cancelled ${type} preference update`);
+    }
+    
+    this.timeouts.clear();
+    this.pendingUpdates.clear();
+    console.log('All preference updates cancelled');
+  }
+
   // Force immediate execution of pending updates
   flushAll(): Promise<void[]> {
     const promises: Promise<void>[] = [];

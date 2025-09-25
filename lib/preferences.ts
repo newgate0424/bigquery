@@ -190,6 +190,13 @@ export class PreferencesAPI {
     type: 'sidebar' | 'theme' | 'filter' | 'columns' | 'widths' | 'colors' | 'table',
     data: SidebarSettings | ThemeSettings | FilterSettings | ColumnVisibility | ColumnWidths | ColorConfig | TableSettings
   ): Promise<boolean> {
+    // ตรวจสอบว่าผู้ใช้ยัง login อยู่หรือไม่
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.log(`Skipping ${type} preferences update - user not authenticated`);
+      return false;
+    }
+    
     return this.withRetry(async () => {
       const payload = { type, data };
       
@@ -210,7 +217,7 @@ export class PreferencesAPI {
           // Ignore parsing error
         }
         const apiError = new Error(errorMessage);
-        (apiError as unknown).status = response.status;
+        (apiError as any).status = response.status;
         throw apiError;
       }
 
@@ -292,10 +299,17 @@ export function useUserPreferences() {
     }
     
     try {
-      console.log('Loading user preferences from database...');
+      console.log('🔍 Loading user preferences from database...');
       const userPrefs = await PreferencesAPI.getPreferences();
+      console.log('✅ User preferences loaded successfully:', userPrefs);
+      
+      if (userPrefs?.columnWidths) {
+        console.log('📏 Column widths found in preferences:', userPrefs.columnWidths);
+      } else {
+        console.log('📏 No column widths found in preferences');
+      }
+      
       setPreferences(userPrefs);
-      console.log('User preferences loaded successfully:', userPrefs);
     } catch (err) {
       console.error('Error loading preferences:', err);
       setError('Failed to load preferences');
@@ -305,25 +319,36 @@ export function useUserPreferences() {
   }, []);
 
   useEffect(() => {
-    // DISABLED for debugging infinite loop
-    if (false) {
+    // Load preferences on component mount
+    loadPreferences();
+    
+    // Listen for user login events to reload preferences
+    const handleUserLogin = (event: CustomEvent) => {
+      console.log('User logged in event received, reloading preferences...', event.detail);
       loadPreferences();
-      
-      // Listen for user login events to reload preferences
-      const handleUserLogin = (event: CustomEvent) => {
-        console.log('User logged in event received, reloading preferences...', event.detail);
-        loadPreferences();
-      };
+    };
 
-      // Add event listener for login
-      window.addEventListener('userLoggedIn', handleUserLogin as EventListener);
+    // Handle logout - cancel all pending preferences updates
+    const handleUserLogout = () => {
+      console.log('User logged out - cancelling all preference updates');
+      debouncer.cancelAll();
+      setPreferences(null);
+      setLoading(false);
+      setError(null);
+    };
 
-      // Cleanup event listener
-      return () => {
-        window.removeEventListener('userLoggedIn', handleUserLogin as EventListener);
-      };
-    }
-  }, []);
+    // Add event listeners
+    window.addEventListener('userLoggedIn', handleUserLogin as EventListener);
+    window.addEventListener('userLoggedOut', handleUserLogout as EventListener);
+
+    // Cleanup event listeners
+    return () => {
+      window.removeEventListener('userLoggedIn', handleUserLogin as EventListener);
+      window.removeEventListener('userLoggedOut', handleUserLogout as EventListener);
+      // Cancel any pending updates when component unmounts
+      debouncer.cancelAll();
+    };
+  }, [loadPreferences]);
 
   const updateSidebarSettings = useCallback(async (sidebarSettings: SidebarSettings) => {
     // บันทึกใน localStorage ทันที

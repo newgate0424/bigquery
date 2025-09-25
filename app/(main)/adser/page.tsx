@@ -321,6 +321,11 @@ const ColorSettingsPopover = memo(({ groupName, teamNames, settings, onSave }: {
                 newSettingsForAllTeams[teamName] = { ...groupSettings }; 
             });
             
+            // บันทึกลง localStorage ทันที
+            localStorage.setItem('adser-color-settings', JSON.stringify(newSettingsForAllTeams));
+            console.log('✅ Color settings saved to localStorage');
+            
+            // บันทึกลงฐานข้อมูล
             const response = await fetch('/api/team-color-settings', { 
                 method: 'POST', 
                 headers: { 'Content-Type': 'application/json' }, 
@@ -329,32 +334,64 @@ const ColorSettingsPopover = memo(({ groupName, teamNames, settings, onSave }: {
             
             if (!response.ok) {
                 const errorData = await response.text();
-                throw new Error(`Failed to save settings: ${errorData}`);
+                console.warn(`Database save failed: ${errorData}`);
+                // แม้ database ล้มเหลว ก็ยังใช้การตั้งค่าจาก localStorage ได้
+                toast.warning(`บันทึกการตั้งค่าใน localStorage สำเร็จ แต่ฐานข้อมูลล้มเหลว: ${errorData}`);
+            } else {
+                const result = await response.json();
+                console.log('✅ Color settings saved to database:', result);
+                toast.success(`บันทึกการตั้งค่าสำหรับกลุ่ม ${groupName} สำเร็จแล้ว`);
             }
             
             onSave(newSettingsForAllTeams);
-            toast.success(`บันทึกการตั้งค่าสำหรับกลุ่ม ${groupName} สำเร็จแล้ว`);
             setOpen(false);
         } catch (error) {
             console.error('Error saving color settings:', error);
-            toast.error(`เกิดข้อผิดพลาดในการบันทึก: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            // แม้ API ล้มเหลว ก็ยังพยายามบันทึกลง localStorage
+            try {
+                const groupSettings = localSettings[representativeTeam] || {};
+                const newSettingsForAllTeams = { ...settings };
+                teamNames.forEach(teamName => { 
+                    newSettingsForAllTeams[teamName] = { ...groupSettings }; 
+                });
+                localStorage.setItem('adser-color-settings', JSON.stringify(newSettingsForAllTeams));
+                onSave(newSettingsForAllTeams);
+                toast.warning(`บันทึกการตั้งค่าใน localStorage สำเร็จ แต่ไม่สามารถเชื่อมต่อฐานข้อมูลได้`);
+                setOpen(false);
+            } catch (localError) {
+                console.error('Error saving to localStorage:', localError);
+                toast.error(`เกิดข้อผิดพลาดในการบันทึก: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
         } finally {
             setLoading(false);
         }
     };
     
     return (
-        <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-accent hover:text-accent-foreground">
-                    <Settings className="h-4 w-4" />
-                </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[600px] max-h-[80vh] flex flex-col p-4" align="start" side="bottom">
-                <div className="space-y-4 flex-grow overflow-y-auto pr-2">
-                    <h4 className="font-medium text-lg">ตั้งค่าสีสำหรับกลุ่ม: {groupName}</h4>
-                    <p className="text-sm text-muted-foreground">การตั้งค่านี้จะใช้กับทีมทั้งหมดในกลุ่ม: {teamNames.join(', ')}</p>
-                    <div className="space-y-4">
+        <>
+            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-accent hover:text-accent-foreground" onClick={() => setOpen(true)}>
+                <Settings className="h-4 w-4" />
+            </Button>
+            
+            {open && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center">
+                    {/* Backdrop */}
+                    <div 
+                        className="fixed inset-0 bg-black/50 backdrop-blur-sm" 
+                        onClick={() => setOpen(false)}
+                    />
+                    
+                    {/* Modal Content */}
+                    <div className="relative bg-background border rounded-lg shadow-lg w-[600px] max-w-[90vw] max-h-[90vh] flex flex-col">
+                        {/* Header */}
+                        <div className="p-4 border-b flex-shrink-0">
+                            <h4 className="font-medium text-lg">ตั้งค่าสีสำหรับกลุ่ม: {groupName}</h4>
+                            <p className="text-sm text-muted-foreground">การตั้งค่านี้จะใช้กับทีมทั้งหมดในกลุ่ม: {teamNames.join(', ')}</p>
+                        </div>
+                        
+                        {/* Scrollable Content */}
+                        <div className="flex-1 overflow-y-auto p-4">
+                            <div className="space-y-4">
                         {Object.entries(allConfigurableFields).map(([key, { name, unit }]) => {
                             const currentFieldSettings = getFieldSettings(key);
                             return (
@@ -415,15 +452,19 @@ const ColorSettingsPopover = memo(({ groupName, teamNames, settings, onSave }: {
                                 </div>
                             );
                         })}
+                            </div>
+                        </div>
+                        
+                        {/* Footer */}
+                        <div className="p-4 border-t flex-shrink-0 bg-background">
+                            <Button onClick={handleSave} disabled={loading} className="w-full">
+                                {loading ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า'}
+                            </Button>
+                        </div>
                     </div>
                 </div>
-                <div className="mt-4 pt-4 border-t flex-shrink-0">
-                    <Button onClick={handleSave} disabled={loading} className="w-full">
-                        {loading ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า'}
-                    </Button>
-                </div>
-            </PopoverContent>
-        </Popover>
+            )}
+        </>
     );
 });
 
@@ -443,6 +484,19 @@ export default function AdserPage() {
 
     const loadColorSettings = async () => {
         try {
+            // ลองโหลดจาก localStorage ก่อน
+            const localSettings = localStorage.getItem('adser-color-settings');
+            if (localSettings) {
+                try {
+                    const parsedLocalSettings = JSON.parse(localSettings);
+                    setColorSettings(parsedLocalSettings);
+                    console.log('✅ Color settings loaded from localStorage');
+                } catch (e) {
+                    console.error('Error parsing localStorage color settings:', e);
+                }
+            }
+
+            // จากนั้นโหลดจากฐานข้อมูล
             const response = await fetch('/api/team-color-settings');
             if (response.ok) {
                 const dbSettings: TeamColorSettingDB[] = await response.json();
@@ -462,8 +516,25 @@ export default function AdserPage() {
                     }
                 });
                 setColorSettings(newSettings);
+                
+                // บันทึกลง localStorage สำหรับการใช้งานครั้งต่อไป
+                localStorage.setItem('adser-color-settings', JSON.stringify(newSettings));
+                console.log('✅ Color settings loaded from database and synced to localStorage');
             }
-        } catch (error) { console.error('Error loading color settings:', error); }
+        } catch (error) { 
+            console.error('Error loading color settings:', error); 
+            // หาก API ล้มเหลว ให้ใช้ localStorage
+            const localSettings = localStorage.getItem('adser-color-settings');
+            if (localSettings) {
+                try {
+                    const parsedLocalSettings = JSON.parse(localSettings);
+                    setColorSettings(parsedLocalSettings);
+                    console.log('⚠️ Using localStorage color settings due to API error');
+                } catch (e) {
+                    console.error('Error parsing localStorage color settings as fallback:', e);
+                }
+            }
+        }
     };
     
     const getTextColorForBackground = (hexColor: string): string => {

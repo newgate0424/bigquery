@@ -204,9 +204,12 @@ export function FilterSidebar({
     }
     
     if (!preferencesLoading && preferences) {
+      console.log('🔄 Loading preferences from database:', preferences);
+      
       // Load filter settings
       if (preferences.filterSettings) {
         const filterSettings = preferences.filterSettings;
+        console.log('📋 Loading filter settings from database:', filterSettings);
         
         // Don't restore dateRange from preferences to avoid timezone issues
         // Let DataTable component handle dateRange initialization
@@ -216,11 +219,55 @@ export function FilterSidebar({
         if (filterSettings.selectedAdvertiser) setSelectedAdvertiser(filterSettings.selectedAdvertiser);
         if (filterSettings.pageDisplayMode) setPageDisplayMode(filterSettings.pageDisplayMode);
         if (filterSettings.selectedStatus) setSelectedStatus(filterSettings.selectedStatus);
+      } else {
+        // Fallback to localStorage if no database preferences
+        console.log('📦 No filter settings in database, checking localStorage...');
+        try {
+          const savedFilterSettings = localStorage.getItem('monitor-filter-settings');
+          if (savedFilterSettings) {
+            const parsed = JSON.parse(savedFilterSettings);
+            console.log('📦 Loading filter settings from localStorage:', parsed);
+            
+            if (parsed.searchText) setSearchText(parsed.searchText);
+            if (parsed.selectedTeam) setSelectedTeam(parsed.selectedTeam);
+            if (parsed.selectedAdvertiser) setSelectedAdvertiser(parsed.selectedAdvertiser);
+            if (parsed.pageDisplayMode) setPageDisplayMode(parsed.pageDisplayMode);
+            if (parsed.selectedStatus) setSelectedStatus(parsed.selectedStatus);
+            
+            // Sync to database
+            if (updateFilterSettings) {
+              console.log('🔄 Syncing localStorage filter settings to database...');
+              updateFilterSettings(parsed);
+            }
+          }
+        } catch (error) {
+          console.error('❌ Error loading filter settings from localStorage:', error);
+        }
       }
 
       // Load column visibility settings
       if (preferences.columnVisibility) {
+        console.log('👁️ Loading column visibility from database:', preferences.columnVisibility);
         setVisibleColumns(preferences.columnVisibility);
+      } else {
+        // Fallback to localStorage if no database preferences
+        console.log('📦 No column visibility in database, checking localStorage...');
+        try {
+          const savedColumnVisibility = localStorage.getItem('monitor-column-visibility');
+          if (savedColumnVisibility) {
+            const parsed = JSON.parse(savedColumnVisibility);
+            console.log('📦 Loading column visibility from localStorage:', parsed);
+            setVisibleColumns(parsed);
+            
+            // Sync to database
+            if (updateColumnVisibility) {
+              console.log('🔄 Syncing localStorage column visibility to database...');
+              updateColumnVisibility(parsed);
+            }
+          }
+        } catch (error) {
+          console.error('❌ Error loading column visibility from localStorage:', error);
+        }
       }
 
       // Load color configuration
@@ -244,47 +291,68 @@ export function FilterSidebar({
 
   // Auto-save filter settings when they change
   useEffect(() => {
-    // TEMPORARILY DISABLED - Only auto-save if component is initialized and not loading
-    if (false && isInitialized && !preferencesLoading && preferences && !preferencesError) {
+    // Only auto-save if component is initialized and not loading
+    if (isInitialized && !preferencesLoading && !preferencesError) {
       const filterSettings: FilterSettings = {
-        // dateRange: (() => {
-        //   if (dateRange && dateRange.from && dateRange.to) {
-        //     return {
-        //       from: dateRange.from.toISOString(),
-        //       to: dateRange.to.toISOString()
-        //     };
-        //   }
-        //   return undefined;
-        // })(),
-        searchText,
-        selectedTeam,
-        selectedAdvertiser,
-        pageDisplayMode,
-        selectedStatus
+        // Don't save dateRange as it's managed by DataTable component
+        searchText: searchText || '',
+        selectedTeam: selectedTeam || '',
+        selectedAdvertiser: selectedAdvertiser || '',
+        pageDisplayMode: pageDisplayMode || '',
+        selectedStatus: selectedStatus || ''
       };
       
-      console.log('Saving filter settings:', filterSettings);
+      console.log('💾 Saving filter settings to localStorage and database:', filterSettings);
       
-      // Debounce the save operation
+      // Save to localStorage immediately
+      try {
+        localStorage.setItem('monitor-filter-settings', JSON.stringify(filterSettings));
+        console.log('✅ Filter settings saved to localStorage');
+      } catch (error) {
+        console.error('❌ Error saving filter settings to localStorage:', error);
+      }
+      
+      // Debounce the database save operation
       const timeoutId = setTimeout(() => {
-        updateFilterSettings(filterSettings);
+        if (updateFilterSettings) {
+          updateFilterSettings(filterSettings);
+          console.log('✅ Filter settings sent to database');
+        } else {
+          console.warn('⚠️ updateFilterSettings function not available');
+        }
       }, 1000);
 
       return () => clearTimeout(timeoutId);
     }
-  }, [dateRange, searchText, selectedTeam, selectedAdvertiser, pageDisplayMode, selectedStatus, isInitialized, preferencesLoading, preferencesError]);
+  }, [searchText, selectedTeam, selectedAdvertiser, pageDisplayMode, selectedStatus, isInitialized, preferencesLoading, preferencesError, updateFilterSettings]);
 
   // Auto-save column visibility when it changes
   useEffect(() => {
-    // TEMPORARILY DISABLED - Only auto-save if component is initialized and not loading
-    if (false && isInitialized && !preferencesLoading && preferences && !preferencesError) {
+    // Only auto-save if component is initialized and not loading
+    if (isInitialized && !preferencesLoading && !preferencesError) {
+      console.log('💾 Saving column visibility to localStorage and database:', visibleColumns);
+      
+      // Save to localStorage immediately
+      try {
+        localStorage.setItem('monitor-column-visibility', JSON.stringify(visibleColumns));
+        console.log('✅ Column visibility saved to localStorage');
+      } catch (error) {
+        console.error('❌ Error saving column visibility to localStorage:', error);
+      }
+      
+      // Debounce the database save operation
       const timeoutId = setTimeout(() => {
-        updateColumnVisibility(visibleColumns);
+        if (updateColumnVisibility) {
+          updateColumnVisibility(visibleColumns);
+          console.log('✅ Column visibility sent to database');
+        } else {
+          console.warn('⚠️ updateColumnVisibility function not available');
+        }
       }, 500);
 
       return () => clearTimeout(timeoutId);
     }
-  }, [visibleColumns, isInitialized, preferencesLoading, preferencesError]);
+  }, [visibleColumns, isInitialized, preferencesLoading, preferencesError, updateColumnVisibility]);
 
   // Load color config visibility from localStorage (keep this local as it's UI state)
   useEffect(() => {
@@ -295,15 +363,6 @@ export function FilterSidebar({
       }
     }
   }, []);
-
-  // Save color config visibility to localStorage
-  const toggleColorConfigVisibility = () => {
-    const newVisibility = !isColorConfigVisible;
-    setIsColorConfigVisible(newVisibility);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('colorConfigVisible', JSON.stringify(newVisibility));
-    }
-  };
 
   // Track color config changes with improved comparison
   useEffect(() => {
@@ -357,19 +416,30 @@ export function FilterSidebar({
 
   // Save color configuration
   const handleSaveColorConfig = async () => {
-    const success = await updateColorConfiguration(colorConfig);
-    if (success) {
-      setOriginalColorConfig(JSON.parse(JSON.stringify(colorConfig)));
-      setHasColorChanges(false);
-      alert('บันทึกการตั้งค่าสีเรียบร้อยแล้ว!');
-    } else {
-      alert('เกิดข้อผิดพลาดในการบันทึก กรุณาลองใหม่อีกครั้ง');
+    console.log('💾 Save button clicked! Color config:', colorConfig);
+    console.log('💾 hasColorChanges:', hasColorChanges);
+    console.log('💾 updateColorConfiguration available:', typeof updateColorConfiguration);
+    
+    try {
+      const success = await updateColorConfiguration(colorConfig);
+      console.log('💾 Save result:', success);
+      
+      if (success) {
+        setOriginalColorConfig(JSON.parse(JSON.stringify(colorConfig)));
+        setHasColorChanges(false);
+        alert('บันทึกการตั้งค่าสีเรียบร้อยแล้ว!');
+      } else {
+        alert('เกิดข้อผิดพลาดในการบันทึก กรุณาลองใหม่อีกครั้ง');
+      }
+    } catch (error) {
+      console.error('💾 Save error:', error);
+      alert('เกิดข้อผิดพลาดในการบันทึก: ' + error.message);
     }
   };
 
-  // Reset color configuration
+  // Reset color configuration - preserve all columns but reset to default rules
   const handleResetColorConfig = () => {
-    const defaultConfig = {
+    const defaultRules = {
       cpm: [
         { id: 'cpm-high', column: 'cpm', condition: 'greater' as const, value1: 50, isPercentage: false, isTextCondition: false, color: '#dc2626', backgroundColor: '#fef2f2', isBold: false, enabled: true },
         { id: 'cpm-low', column: 'cpm', condition: 'less' as const, value1: 20, isPercentage: false, isTextCondition: false, color: '#16a34a', backgroundColor: '#f0fdf4', isBold: false, enabled: true }
@@ -383,15 +453,32 @@ export function FilterSidebar({
         { id: 'quality-low', column: 'qualityContact', condition: 'less' as const, value1: 50, isPercentage: false, isTextCondition: false, color: '#dc2626', backgroundColor: '#fef2f2', isBold: false, enabled: true }
       ]
     };
-    setColorConfig(defaultConfig);
+    
+    // Create new config keeping all columns but resetting rules to defaults where available
+    const newConfig: ColorConfig = {};
+    Object.keys(visibleColumns).forEach(columnKey => {
+      newConfig[columnKey] = defaultRules[columnKey as keyof typeof defaultRules] || [];
+    });
+    
+    setColorConfig(newConfig);
   };
 
   // Handle color config changes with tracking
   const handleColorConfigChange = (newConfig: ColorConfig) => {
     console.log('🎨 Color config changed:', newConfig);
     setColorConfig(newConfig);
-    // Don't immediately set hasColorChanges to true
-    // Let the useEffect handle the comparison
+    
+    // Immediately check for changes to enable save button
+    if (originalColorConfig && Object.keys(originalColorConfig).length > 0) {
+      const normalizedOriginal = JSON.stringify(originalColorConfig, Object.keys(originalColorConfig).sort());
+      const normalizedCurrent = JSON.stringify(newConfig, Object.keys(newConfig).sort());
+      const hasChanges = normalizedOriginal !== normalizedCurrent;
+      
+      console.log('🔍 Immediate change detection:');
+      console.log('- Has changes:', hasChanges);
+      
+      setHasColorChanges(hasChanges);
+    }
   };
 
   // Add new color rule to a column
@@ -421,6 +508,16 @@ export function FilterSidebar({
     handleColorConfigChange({
       ...colorConfig,
       [columnKey]: colorConfig[columnKey].filter(rule => rule.id !== ruleId)
+    });
+  };
+
+  // Update specific rule properties
+  const updateColorRule = (columnKey: string, ruleIndex: number, updates: Partial<ColorRule>) => {
+    handleColorConfigChange({
+      ...colorConfig,
+      [columnKey]: colorConfig[columnKey].map((rule, index) => 
+        index === ruleIndex ? { ...rule, ...updates } : rule
+      )
     });
   };
 
@@ -713,7 +810,7 @@ export function FilterSidebar({
               <div className="space-y-2">
                 <div className="flex items-center gap-2 mb-2">
                   <Users className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                  <label className="text-sm font-medium text-slate-700 dark:text-slate-200">ผู้ลงโฆษณา</label>
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-200">Adser</label>
                 </div>
                 <Select value={selectedAdvertiser} onValueChange={handleAdvertiserChange}>
                   <SelectTrigger className="w-full">
@@ -772,436 +869,381 @@ export function FilterSidebar({
               </div>
             </div>
 
-            {/* Column Visibility Filter */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 mb-2">
-                <Eye className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                <label className="text-sm font-medium text-slate-700 dark:text-slate-200">เลือกคอลัมน์ที่แสดง</label>
-              </div>
-              <Select
-                open={isColumnDropdownOpen}
-                onOpenChange={setIsColumnDropdownOpen}
-                value=""
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder={
-                    isHydrated && Object.keys(visibleColumns).length > 0
-                      ? `เลือกคอลัมน์ (${visibleCount}/${totalCount} แสดง)`
-                      : isHydrated
-                        ? "กำลังโหลดคอลัมน์..."
-                        : "เลือกคอลัมน์..."
-                  } />
-                </SelectTrigger>
-                <SelectContent className="max-h-64">
-                  <div className="p-2 border-b">
-                    <div className="flex gap-1">
-                      <button
-                        onClick={handleSelectAll}
-                        className="px-2 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 rounded"
-                      >
-                        เลือกทั้งหมด
-                      </button>
-                      <button
-                        onClick={handleSelectDefault}
-                        className="px-2 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded"
-                      >
-                        ค่าเริ่มต้น
-                      </button>
-                      <button
-                        onClick={handleSelectNone}
-                        className="px-2 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-700 rounded"
-                      >
-                        ยกเลิกทั้งหมด
-                      </button>
+            {/* Row 2: Column Visibility and Color Configuration - Side by Side */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Column Visibility Filter */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 mb-2">
+                  <Eye className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-200">แสดงคอลัมน์</label>
+                </div>
+                <Select
+                  open={isColumnDropdownOpen}
+                  onOpenChange={setIsColumnDropdownOpen}
+                  value=""
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={
+                      isHydrated && Object.keys(visibleColumns).length > 0
+                        ? `เลือกคอลัมน์ (${visibleCount}/${totalCount} แสดง)`
+                        : isHydrated
+                          ? "กำลังโหลดคอลัมน์..."
+                          : "เลือกคอลัมน์..."
+                    } />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-64">
+                    <div className="p-2 border-b">
+                      <div className="flex gap-1">
+                        <button
+                          onClick={handleSelectAll}
+                          className="px-2 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 rounded"
+                        >
+                          เลือกทั้งหมด
+                        </button>
+                        <button
+                          onClick={handleSelectDefault}
+                          className="px-2 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded"
+                        >
+                          ค่าเริ่มต้น
+                        </button>
+                        <button
+                          onClick={handleSelectNone}
+                          className="px-2 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-700 rounded"
+                        >
+                          ยกเลิกทั้งหมด
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                  {columnEntries.map(([column, isVisible]) => (
-                    <CheckboxItem
-                      key={column}
-                      column={column}
-                      isVisible={isVisible}
-                      displayName={getColumnDisplayName(column)}
-                      onToggle={handleColumnToggle}
-                    />
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-                {isHydrated && Object.keys(visibleColumns).length > 0
-                  ? `แสดง: ${visibleCount} / ${totalCount} คอลัมน์`
-                  : isHydrated
-                    ? "กำลังโหลดคอลัมน์..."
-                    : "กำลังโหลด..."
-                }
-              </div>
-            </div>
-
-            {/* Color Configuration Filter - Available for All Users */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <div className="h-3 w-3 bg-gradient-to-r from-red-500 to-green-500 rounded-full"></div>
-                  <label className="text-sm font-medium text-slate-700 dark:text-slate-200">การตั้งค่าสี</label>
-                </div>
-                <div className="flex gap-1">
-                  {isColorConfigVisible && (
-                    <>
-                      <button
-                        onClick={handleSaveColorConfig}
-                        disabled={!hasColorChanges}
-                        className={`px-2 py-1 text-xs rounded transition-colors ${
-                          hasColorChanges 
-                            ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                            : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                        }`}
-                        title="บันทึกการตั้งค่าสี"
-                      >
-                        💾
-                      </button>
-                      <button
-                        onClick={handleResetColorConfig}
-                        className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors"
-                        title="รีเซ็ตค่าเริ่มต้น"
-                      >
-                        🔄
-                      </button>
-                    </>
-                  )}
-                  <button
-                    onClick={toggleColorConfigVisibility}
-                    className={`px-2 py-1 text-xs rounded transition-all duration-200 flex items-center justify-center ${
-                      isColorConfigVisible 
-                        ? 'bg-blue-100 hover:bg-blue-200 text-blue-700 border border-blue-300' 
-                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300'
-                    }`}
-                    title={isColorConfigVisible ? "ซ่อนการตั้งค่าสี" : "แสดงการตั้งค่าสี"}
-                  >
-                    {isColorConfigVisible ? '🙈' : '👁️'}
-                  </button>
+                    {columnEntries.map(([column, isVisible]) => (
+                      <CheckboxItem
+                        key={column}
+                        column={column}
+                        isVisible={isVisible}
+                        displayName={getColumnDisplayName(column)}
+                        onToggle={handleColumnToggle}
+                      />
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                  {isHydrated && Object.keys(visibleColumns).length > 0
+                    ? `แสดง: ${visibleCount} / ${totalCount} คอลัมน์`
+                    : isHydrated
+                      ? "กำลังโหลดคอลัมน์..."
+                      : "กำลังโหลด..."
+                  }
                 </div>
               </div>
-              
-              {hasColorChanges && (
-                <div className="text-xs text-orange-700 dark:text-orange-300 font-medium bg-orange-100/80 dark:bg-orange-900/30 p-2 rounded border border-orange-300 dark:border-orange-600/30">
-                  ⚠️ มีการเปลี่ยนแปลงยังไม่ได้บันทึก
-                </div>
-              )}
 
-              {isColorConfigVisible && (
-                <div className="max-h-80 overflow-y-auto border border-slate-300/30 dark:border-slate-600/30 rounded-md bg-white/40 dark:bg-slate-800/30 backdrop-blur-sm">
-                  {isHydrated && Object.entries(colorConfig).map(([columnKey, rules]) => (
-                    <details key={columnKey} className="border-b border-slate-200 dark:border-slate-700 last:border-b-0">
-                      <summary className="px-3 py-2 cursor-pointer hover:bg-slate-100/70 dark:hover:bg-slate-700/50 flex items-center justify-between">
-                        <span className="text-sm font-medium text-slate-800 dark:text-slate-200">
-                          {getColumnDisplayName(columnKey)}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs text-slate-600 dark:text-slate-400">
-                            {rules.filter(r => r.enabled).length}/{rules.length}
-                          </span>
-                          <div className="flex gap-0.5">
-                            {rules.slice(0, 3).map((rule, i) => (
-                              <div 
-                                key={i}
-                                className={`w-2 h-2 rounded-full border ${rule.enabled ? 'opacity-100' : 'opacity-30'}`}
-                                style={{ backgroundColor: rule.backgroundColor }}
-                                title={`${rule.condition} ${rule.value1}${rule.isPercentage ? '%' : ''}`}
-                              />
-                            ))}
-                          </div>
+              {/* Color Configuration Filter */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="h-4 w-4 bg-gradient-to-r from-red-500 to-green-500 rounded-full"></div>
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-200">ตั้งค่าสี</label>
+                </div>
+                <Select
+                  open={isColorConfigVisible}
+                  onOpenChange={setIsColorConfigVisible}
+                  value=""
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={
+                      isHydrated && Object.keys(colorConfig).length > 0
+                        ? `ตั้งค่าสี (${Object.values(colorConfig).flat().filter(r => r.enabled).length} กฎ)`
+                        : isHydrated
+                          ? "เลือกการตั้งค่าสี..."
+                          : "กำลังโหลด..."
+                    } />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-96 w-[400px]">
+                    <div className="p-2 border-b">
+                      <div className="flex gap-1 justify-between">
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => {
+                              console.log('🖱️ Save button clicked - hasColorChanges:', hasColorChanges);
+                              console.log('🖱️ colorConfig:', colorConfig);
+                              console.log('🖱️ originalColorConfig:', originalColorConfig);
+                              handleSaveColorConfig();
+                            }}
+                            disabled={!hasColorChanges}
+                            className={`px-2 py-1 text-xs rounded transition-colors ${
+                              hasColorChanges 
+                                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm' 
+                                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            }`}
+                            title={hasColorChanges ? "บันทึกการตั้งค่าสี" : "ไม่มีการเปลี่ยนแปลง"}
+                          >
+                            💾 บันทึก{hasColorChanges ? ' *' : ''}
+                          </button>
+                          <button
+                            onClick={handleResetColorConfig}
+                            className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors"
+                            title="รีเซ็ตค่าเริ่มต้น"
+                          >
+                            🔄 รีเซ็ต
+                          </button>
                         </div>
-                      </summary>
+                        {hasColorChanges && (
+                          <div className="text-xs text-orange-700 font-medium">
+                            ⚠️ ยังไม่ได้บันทึก
+                          </div>
+                        )}
+                      </div>
+                    </div>
                     
-                    <div className="px-3 pb-2 space-y-1">
-                      {rules.map((rule, ruleIndex) => (
-                        <div key={rule.id} className="flex flex-col gap-2 p-2 bg-slate-100/40 dark:bg-slate-700/30 rounded text-xs border border-slate-300/50 dark:border-slate-600/50 backdrop-blur-sm">
-                          {/* Top Row: Enable/Disable and Remove Button */}
-                          <div className="flex items-center justify-between">
-                            <label className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={rule.enabled}
-                                onChange={(e) => {
-                                  handleColorConfigChange({
-                                    ...colorConfig,
-                                    [columnKey]: colorConfig[columnKey].map((r, i) => 
-                                      i === ruleIndex ? { ...r, enabled: e.target.checked } : r
-                                    )
-                                  });
-                                }}
-                                className="w-3 h-3 flex-shrink-0"
-                              />
-                              <span className="text-slate-700 dark:text-slate-300">เปิดใช้งาน</span>
-                            </label>
-                            
-                            {/* Preview and Remove */}
-                            <div className="flex items-center gap-2">
-                              <div 
-                                className="w-4 h-4 rounded border flex items-center justify-center text-xs"
-                                style={{ 
-                                  backgroundColor: rule.backgroundColor, 
-                                  color: rule.color,
-                                  borderColor: '#d1d5db'
-                                }}
-                                title="ตัวอย่างสี"
-                              >
-                                A
+                    <div className="max-h-80 overflow-y-auto">
+                      {isHydrated && Object.keys(visibleColumns).map((columnKey) => {
+                        const rules = colorConfig[columnKey] || [];
+                        return (
+                          <details key={columnKey} className="border-b border-slate-200 dark:border-slate-700 last:border-b-0">
+                            <summary className="px-3 py-2 cursor-pointer hover:bg-slate-100/70 dark:hover:bg-slate-700/50 flex items-center justify-between">
+                              <span className="text-sm font-medium text-slate-800 dark:text-slate-200">
+                                {getColumnDisplayName(columnKey)}
+                              </span>
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs text-slate-600 dark:text-slate-400">
+                                  {rules.filter(r => r.enabled).length}/{rules.length}
+                                </span>
+                                <div className="flex gap-0.5">
+                                  {rules.slice(0, 3).map((rule, i) => (
+                                    <div 
+                                      key={i}
+                                      className={`w-2 h-2 rounded-full border ${rule.enabled ? 'opacity-100' : 'opacity-30'}`}
+                                      style={{ backgroundColor: rule.backgroundColor }}
+                                      title={`${rule.condition} ${rule.value1}${rule.isPercentage ? '%' : ''}`}
+                                    />
+                                  ))}
+                                </div>
                               </div>
-                              {rules.length > 1 && (
-                                <button
-                                  onClick={() => removeColorRule(columnKey, rule.id)}
-                                  className="w-5 h-5 flex items-center justify-center bg-red-100 hover:bg-red-200 text-red-600 rounded transition-colors flex-shrink-0"
-                                  title="ลบกฎนี้"
-                                >
-                                  ×
-                                </button>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Color Customization Row */}
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-slate-700 dark:text-slate-300 text-xs flex-shrink-0">สี:</span>
+                            </summary>
                             
-                            {/* Background Color Picker */}
-                            <div className="flex items-center gap-1">
-                              <input
-                                type="color"
-                                value={rule.backgroundColor}
-                                onChange={(e) => {
-                                  handleColorConfigChange({
-                                    ...colorConfig,
-                                    [columnKey]: colorConfig[columnKey].map((r, i) => 
-                                      i === ruleIndex ? { ...r, backgroundColor: e.target.value } : r
-                                    )
-                                  });
-                                }}
-                                className="w-5 h-5 rounded border border-gray-300 cursor-pointer"
-                                title="สีพื้นหลัง"
-                              />
-                              <span className="text-xs text-slate-600 dark:text-slate-400">พื้นหลัง</span>
-                            </div>
+                            <div className="px-3 pb-2 space-y-1">
+                              {rules.map((rule, ruleIndex) => (
+                                <div key={rule.id} className="flex flex-col gap-2 p-2 bg-slate-100/40 dark:bg-slate-700/30 rounded text-xs border border-slate-300/50 dark:border-slate-600/50 backdrop-blur-sm">
+                                  {/* Top Row: Enable/Disable and Remove Button */}
+                                  <div className="flex items-center justify-between">
+                                    <label className="flex items-center gap-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={rule.enabled}
+                                        onChange={(e) => updateColorRule(columnKey, ruleIndex, { enabled: e.target.checked })}
+                                        className="w-3 h-3 flex-shrink-0"
+                                      />
+                                      <span className="text-slate-700 dark:text-slate-300">เปิดใช้งาน</span>
+                                    </label>
+                                    
+                                    {/* Preview and Remove */}
+                                    <div className="flex items-center gap-2">
+                                      <div 
+                                        className="w-4 h-4 rounded border flex items-center justify-center text-xs"
+                                        style={{ 
+                                          backgroundColor: rule.backgroundColor, 
+                                          color: rule.color,
+                                          borderColor: '#d1d5db'
+                                        }}
+                                        title="ตัวอย่างสี"
+                                      >
+                                        A
+                                      </div>
+                                      {rules.length > 1 && (
+                                        <button
+                                          onClick={() => removeColorRule(columnKey, rule.id)}
+                                          className="w-5 h-5 flex items-center justify-center bg-red-100 hover:bg-red-200 text-red-600 rounded transition-colors flex-shrink-0"
+                                          title="ลบกฎนี้"
+                                        >
+                                          ×
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
 
-                            {/* Text Color Picker */}
-                            <div className="flex items-center gap-1">
-                              <input
-                                type="color"
-                                value={rule.color}
-                                onChange={(e) => {
-                                  handleColorConfigChange({
-                                    ...colorConfig,
-                                    [columnKey]: colorConfig[columnKey].map((r, i) => 
-                                      i === ruleIndex ? { ...r, color: e.target.value } : r
-                                    )
-                                  });
-                                }}
-                                className="w-5 h-5 rounded border border-gray-300 cursor-pointer"
-                                title="สีข้อความ"
-                              />
-                              <span className="text-xs text-slate-600 dark:text-slate-400">ข้อความ</span>
-                            </div>
+                                  {/* Color Customization Row */}
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-slate-700 dark:text-slate-300 text-xs flex-shrink-0">สี:</span>
+                                    
+                                    {/* Background Color Picker */}
+                                    <div className="flex items-center gap-1">
+                                      <input
+                                        type="color"
+                                        value={rule.backgroundColor}
+                                        onChange={(e) => updateColorRule(columnKey, ruleIndex, { backgroundColor: e.target.value })}
+                                        className="w-5 h-5 rounded border border-gray-300 cursor-pointer"
+                                        title="สีพื้นหลัง"
+                                      />
+                                      <span className="text-xs text-slate-600 dark:text-slate-400">พื้นหลัง</span>
+                                    </div>
 
-                            {/* Quick Color Presets */}
-                            <div className="flex gap-1 flex-wrap">
-                              {colorOptions.slice(0, 4).map((option, i) => (
-                                <button
-                                  key={i}
-                                  onClick={() => {
-                                    handleColorConfigChange({
-                                      ...colorConfig,
-                                      [columnKey]: colorConfig[columnKey].map((r, idx) => 
-                                        idx === ruleIndex ? { ...r, backgroundColor: option.bg, color: option.text } : r
-                                      )
-                                    });
-                                  }}
-                                  className="w-3 h-3 rounded border border-gray-300 hover:scale-110 transition-transform"
-                                  style={{ backgroundColor: option.bg }}
-                                  title={`ใช้สี${option.name}`}
-                                />
+                                    {/* Text Color Picker */}
+                                    <div className="flex items-center gap-1">
+                                      <input
+                                        type="color"
+                                        value={rule.color}
+                                        onChange={(e) => updateColorRule(columnKey, ruleIndex, { color: e.target.value })}
+                                        className="w-5 h-5 rounded border border-gray-300 cursor-pointer"
+                                        title="สีข้อความ"
+                                      />
+                                      <span className="text-xs text-slate-600 dark:text-slate-400">ข้อความ</span>
+                                    </div>
+
+                                    {/* Quick Color Presets */}
+                                    <div className="flex gap-1 flex-wrap">
+                                      {colorOptions.slice(0, 4).map((option, i) => (
+                                        <button
+                                          key={i}
+                                          onClick={() => updateColorRule(columnKey, ruleIndex, { backgroundColor: option.bg, color: option.text })}
+                                          className="w-3 h-3 rounded border border-gray-300 hover:scale-110 transition-transform"
+                                          style={{ backgroundColor: option.bg }}
+                                          title={`ใช้สี${option.name}`}
+                                        />
+                                      ))}
+                                    </div>
+                                  </div>
+
+                                  {/* Condition Type Toggle */}
+                                  <div className="flex flex-wrap items-center gap-2 mb-2">
+                                    <span className="text-slate-700 text-xs flex-shrink-0">ประเภทเงื่อนไข:</span>
+                                    <div className="flex gap-1">
+                                      <button
+                                        onClick={() => updateColorRule(columnKey, ruleIndex, { 
+                                          isTextCondition: false, 
+                                          condition: 'greater',
+                                          value1: 0,
+                                          value2: undefined
+                                        })}
+                                        className={`px-2 py-1 text-xs rounded transition-colors ${
+                                          !rule.isTextCondition 
+                                            ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-800/60 dark:text-blue-200 dark:border-blue-600' 
+                                            : 'bg-slate-200 text-slate-700 border border-slate-400 dark:bg-slate-600 dark:text-slate-200 dark:border-slate-500'
+                                        }`}
+                                      >
+                                        ตัวเลข
+                                      </button>
+                                      <button
+                                        onClick={() => updateColorRule(columnKey, ruleIndex, { 
+                                          isTextCondition: true, 
+                                          condition: 'contains',
+                                          value1: '',
+                                          value2: undefined,
+                                          isPercentage: false
+                                        })}
+                                        className={`px-2 py-1 text-xs rounded transition-colors ${
+                                          rule.isTextCondition 
+                                            ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-800/60 dark:text-blue-200 dark:border-blue-600' 
+                                            : 'bg-slate-200 text-slate-700 border border-slate-400 dark:bg-slate-600 dark:text-slate-200 dark:border-slate-500'
+                                        }`}
+                                      >
+                                        ข้อความ
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Condition Row */}
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-slate-700 text-xs flex-shrink-0">เงื่อนไข:</span>
+                                    
+                                    <select
+                                      value={rule.condition}
+                                      onChange={(e) => updateColorRule(columnKey, ruleIndex, { condition: e.target.value as ColorRule['condition'] })}
+                                      className="px-1 py-0.5 text-xs border border-slate-400 rounded bg-white text-slate-800"
+                                    >
+                                      {rule.isTextCondition ? (
+                                        <>
+                                          <option value="contains">มีคำนี้</option>
+                                          <option value="equals">เท่ากับ</option>
+                                          <option value="not_contains">ไม่มีคำนี้</option>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <option value="greater">มากกว่า</option>
+                                          <option value="less">น้อยกว่า</option>
+                                          <option value="between">ระหว่าง</option>
+                                        </>
+                                      )}
+                                    </select>
+                                    
+                                    <input
+                                      type={rule.isTextCondition ? "text" : "number"}
+                                      value={rule.value1}
+                                      onChange={(e) => {
+                                        const newValue = rule.isTextCondition ? e.target.value : Number(e.target.value);
+                                        updateColorRule(columnKey, ruleIndex, { value1: newValue });
+                                      }}
+                                      className="w-16 px-1 py-0.5 text-xs border border-slate-400 rounded bg-white text-slate-800"
+                                      step={rule.isTextCondition ? undefined : (rule.isPercentage ? "0.1" : "1")}
+                                      placeholder={rule.isTextCondition ? "ข้อความ" : "ค่า"}
+                                    />
+                                    
+                                    {rule.condition === 'between' && !rule.isTextCondition && (
+                                      <>
+                                        <span className="text-slate-600 text-xs">ถึง</span>
+                                        <input
+                                          type="number"
+                                          value={rule.value2 || 0}
+                                          onChange={(e) => updateColorRule(columnKey, ruleIndex, { value2: Number(e.target.value) })}
+                                          className="w-12 px-1 py-0.5 text-xs border border-slate-400 rounded bg-white text-slate-800"
+                                          step={rule.isPercentage ? "0.1" : "1"}
+                                          placeholder="ค่าสิ้นสุด"
+                                        />
+                                      </>
+                                    )}
+                                    
+                                    {!rule.isTextCondition && (
+                                      <label className="flex items-center gap-1 flex-shrink-0">
+                                        <input
+                                          type="checkbox"
+                                          checked={rule.isPercentage}
+                                          onChange={(e) => updateColorRule(columnKey, ruleIndex, { isPercentage: e.target.checked })}
+                                          className="w-3 h-3"
+                                        />
+                                        <span className="text-xs text-slate-700">เปอร์เซ็นต์</span>
+                                      </label>
+                                    )}
+                                    
+                                    <label className="flex items-center gap-1 flex-shrink-0">
+                                      <input
+                                        type="checkbox"
+                                        checked={rule.isBold}
+                                        onChange={(e) => updateColorRule(columnKey, ruleIndex, { isBold: e.target.checked })}
+                                        className="w-3 h-3"
+                                      />
+                                      <span className="text-xs text-slate-700">ตัวหนา</span>
+                                    </label>
+                                  </div>
+                                </div>
                               ))}
-                            </div>
-                          </div>
-
-                          {/* Condition Type Toggle */}
-                          <div className="flex flex-wrap items-center gap-2 mb-2">
-                            <span className="text-slate-700 text-xs flex-shrink-0">ประเภทเงื่อนไข:</span>
-                            <div className="flex gap-1">
+                              
+                              {/* Add New Rule Button */}
                               <button
-                                onClick={() => {
-                                  handleColorConfigChange({
-                                    ...colorConfig,
-                                    [columnKey]: colorConfig[columnKey].map((r, i) => 
-                                      i === ruleIndex ? { 
-                                        ...r, 
-                                        isTextCondition: false, 
-                                        condition: 'greater',
-                                        value1: 0,
-                                        value2: undefined
-                                      } : r
-                                    )
-                                  });
-                                }}
-                                className={`px-2 py-1 text-xs rounded transition-colors ${
-                                  !rule.isTextCondition 
-                                    ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-800/60 dark:text-blue-200 dark:border-blue-600' 
-                                    : 'bg-slate-200 text-slate-700 border border-slate-400 dark:bg-slate-600 dark:text-slate-200 dark:border-slate-500'
-                                }`}
+                                onClick={() => addColorRule(columnKey)}
+                                className="w-full py-2 text-xs bg-blue-100/80 hover:bg-blue-200/80 text-blue-700 border border-blue-300 rounded transition-colors flex items-center justify-center gap-1 font-medium"
                               >
-                                ตัวเลข
-                              </button>
-                              <button
-                                onClick={() => {
-                                  handleColorConfigChange({
-                                    ...colorConfig,
-                                    [columnKey]: colorConfig[columnKey].map((r, i) => 
-                                      i === ruleIndex ? { 
-                                        ...r, 
-                                        isTextCondition: true, 
-                                        condition: 'contains',
-                                        value1: '',
-                                        value2: undefined,
-                                        isPercentage: false
-                                      } : r
-                                    )
-                                  });
-                                }}
-                                className={`px-2 py-1 text-xs rounded transition-colors ${
-                                  rule.isTextCondition 
-                                    ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-800/60 dark:text-blue-200 dark:border-blue-600' 
-                                    : 'bg-slate-200 text-slate-700 border border-slate-400 dark:bg-slate-600 dark:text-slate-200 dark:border-slate-500'
-                                }`}
-                              >
-                                ข้อความ
+                                + เพิ่มกฎสีใหม่
                               </button>
                             </div>
-                          </div>
-
-                          {/* Condition Row */}
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-slate-700 text-xs flex-shrink-0">เงื่อนไข:</span>
-                            
-                            <select
-                              value={rule.condition}
-                              onChange={(e) => {
-                                handleColorConfigChange({
-                                  ...colorConfig,
-                                  [columnKey]: colorConfig[columnKey].map((r, i) => 
-                                    i === ruleIndex ? { ...r, condition: e.target.value as ColorRule['condition'] } : r
-                                  )
-                                });
-                              }}
-                              className="px-1 py-0.5 text-xs border border-slate-400 rounded bg-white text-slate-800"
-                            >
-                              {rule.isTextCondition ? (
-                                <>
-                                  <option value="contains">มีคำนี้</option>
-                                  <option value="equals">เท่ากับ</option>
-                                  <option value="not_contains">ไม่มีคำนี้</option>
-                                </>
-                              ) : (
-                                <>
-                                  <option value="greater">มากกว่า</option>
-                                  <option value="less">น้อยกว่า</option>
-                                  <option value="between">ระหว่าง</option>
-                                </>
-                              )}
-                            </select>
-                            
-                            <input
-                              type={rule.isTextCondition ? "text" : "number"}
-                              value={rule.value1}
-                              onChange={(e) => {
-                                const newValue = rule.isTextCondition ? e.target.value : Number(e.target.value);
-                                handleColorConfigChange({
-                                  ...colorConfig,
-                                  [columnKey]: colorConfig[columnKey].map((r, i) => 
-                                    i === ruleIndex ? { ...r, value1: newValue } : r
-                                  )
-                                });
-                              }}
-                              className="w-16 px-1 py-0.5 text-xs border border-slate-400 rounded bg-white text-slate-800"
-                              step={rule.isTextCondition ? undefined : (rule.isPercentage ? "0.1" : "1")}
-                              placeholder={rule.isTextCondition ? "ข้อความ" : "ค่า"}
-                            />
-                            
-                            {rule.condition === 'between' && !rule.isTextCondition && (
-                              <>
-                                <span className="text-slate-600 text-xs">ถึง</span>
-                                <input
-                                  type="number"
-                                  value={rule.value2 || 0}
-                                  onChange={(e) => {
-                                    handleColorConfigChange({
-                                      ...colorConfig,
-                                      [columnKey]: colorConfig[columnKey].map((r, i) => 
-                                        i === ruleIndex ? { ...r, value2: Number(e.target.value) } : r
-                                      )
-                                    });
-                                  }}
-                                  className="w-12 px-1 py-0.5 text-xs border border-slate-400 rounded bg-white text-slate-800"
-                                  step={rule.isPercentage ? "0.1" : "1"}
-                                  placeholder="ค่าสิ้นสุด"
-                                />
-                              </>
-                            )}
-                            
-                            {!rule.isTextCondition && (
-                              <label className="flex items-center gap-1 flex-shrink-0">
-                                <input
-                                  type="checkbox"
-                                  checked={rule.isPercentage}
-                                  onChange={(e) => {
-                                    handleColorConfigChange({
-                                      ...colorConfig,
-                                      [columnKey]: colorConfig[columnKey].map((r, i) => 
-                                        i === ruleIndex ? { ...r, isPercentage: e.target.checked } : r
-                                      )
-                                    });
-                                  }}
-                                  className="w-3 h-3"
-                                />
-                                <span className="text-xs text-slate-700">เปอร์เซ็นต์</span>
-                              </label>
-                            )}
-                            
-                            <label className="flex items-center gap-1 flex-shrink-0">
-                              <input
-                                type="checkbox"
-                                checked={rule.isBold}
-                                onChange={(e) => {
-                                  handleColorConfigChange({
-                                    ...colorConfig,
-                                    [columnKey]: colorConfig[columnKey].map((r, i) => 
-                                      i === ruleIndex ? { ...r, isBold: e.target.checked } : r
-                                    )
-                                  });
-                                }}
-                                className="w-3 h-3"
-                              />
-                              <span className="text-xs text-slate-700">ตัวหนา</span>
-                            </label>
-                          </div>
+                          </details>
+                        );
+                      })}
+                      {!isHydrated && (
+                        <div className="p-4 text-center text-slate-600 text-sm">
+                          กำลังโหลดการตั้งค่าสี...
                         </div>
-                      ))}
-                      
-                      {/* Add New Rule Button */}
-                      <button
-                        onClick={() => addColorRule(columnKey)}
-                        className="w-full py-2 text-xs bg-blue-100/80 hover:bg-blue-200/80 text-blue-700 border border-blue-300 rounded transition-colors flex items-center justify-center gap-1 font-medium"
-                      >
-                        + เพิ่มกฎสีใหม่
-                      </button>
+                      )}
                     </div>
-                  </details>
-                ))}
-                {!isHydrated && (
-                  <div className="p-4 text-center text-slate-600 text-sm">
-                    กำลังโหลดการตั้งค่าสี...
-                  </div>
-                )}
+                  </SelectContent>
+                </Select>
+                <div className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                  {isHydrated && Object.keys(colorConfig).length > 0
+                    ? `กฎสี: ${Object.values(colorConfig).flat().filter(r => r.enabled).length} / ${Object.values(colorConfig).flat().length} กฎ`
+                    : isHydrated
+                      ? "กำลังโหลดการตั้งค่าสี..."
+                      : "กำลังโหลด..."
+                  }
                 </div>
-              )}
+              </div>
             </div>
+
+
 
             {/* Items per page control */}
             <div className="space-y-2">
