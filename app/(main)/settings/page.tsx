@@ -6,8 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useTheme } from '@/lib/theme-context';
-import CookieManager from '@/components/CookieManager';
-import { Palette, RotateCcw, Save, Check, Cookie, Type, Sliders, Eye } from 'lucide-react';
+import { Palette, RotateCcw, Save, Check, Type, Sliders, Eye } from 'lucide-react';
 
 // Primary color presets
 const primaryColorPresets = [
@@ -407,23 +406,6 @@ export default function SettingsPage() {
                         })}
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-
-                {/* Cookie Management - Compact */}
-                <Card className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm border-0 shadow-lg rounded-xl overflow-hidden">
-                  <CardHeader className="pb-2 bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20">
-                    <CardTitle className="flex items-center gap-2 text-base font-semibold">
-                      <div className="p-1.5 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg shadow-md">
-                        <Cookie className="h-3 w-3 text-white" />
-                      </div>
-                      <span className="bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
-                        การจัดการคุกกี้
-                      </span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-4">
-                    <CookieManager />
                   </CardContent>
                 </Card>
               </div>
