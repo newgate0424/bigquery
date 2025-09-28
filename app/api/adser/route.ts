@@ -208,8 +208,9 @@ export async function GET(req: NextRequest) {
         await connection.end();
         return NextResponse.json(teamMetrics);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Error in API route (adser):', error);
-        return NextResponse.json({ message: 'Internal Server Error', error: error.message }, { status: 500 });
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        return NextResponse.json({ message: 'Internal Server Error', error: message }, { status: 500 });
     }
 }

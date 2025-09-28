@@ -160,7 +160,15 @@ export function FilterSidebar({
       'blocked': 'ถูกบล็อก',
       'under18': 'ต่ำกว่า 18',
       'over50': 'เกิน 50',
-      'foreigner': 'ชาวต่างชาติ'
+      'foreigner': 'ชาวต่างชาติ',
+      // Daily deposit columns
+      'day1': 'วันที่ 1', 'day2': 'วันที่ 2', 'day3': 'วันที่ 3', 'day4': 'วันที่ 4', 'day5': 'วันที่ 5',
+      'day6': 'วันที่ 6', 'day7': 'วันที่ 7', 'day8': 'วันที่ 8', 'day9': 'วันที่ 9', 'day10': 'วันที่ 10',
+      'day11': 'วันที่ 11', 'day12': 'วันที่ 12', 'day13': 'วันที่ 13', 'day14': 'วันที่ 14', 'day15': 'วันที่ 15',
+      'day16': 'วันที่ 16', 'day17': 'วันที่ 17', 'day18': 'วันที่ 18', 'day19': 'วันที่ 19', 'day20': 'วันที่ 20',
+      'day21': 'วันที่ 21', 'day22': 'วันที่ 22', 'day23': 'วันที่ 23', 'day24': 'วันที่ 24', 'day25': 'วันที่ 25',
+      'day26': 'วันที่ 26', 'day27': 'วันที่ 27', 'day28': 'วันที่ 28', 'day29': 'วันที่ 29', 'day30': 'วันที่ 30',
+      'day31': 'วันที่ 31'
     };
     return thaiNames[key] || key;
   };
@@ -505,17 +513,19 @@ export function FilterSidebar({
 
   // Remove color rule from a column
   const removeColorRule = (columnKey: string, ruleId: string) => {
+    const currentRules = Array.isArray(colorConfig?.[columnKey]) ? colorConfig[columnKey] : [];
     handleColorConfigChange({
       ...colorConfig,
-      [columnKey]: colorConfig[columnKey].filter(rule => rule.id !== ruleId)
+      [columnKey]: currentRules.filter(rule => rule.id !== ruleId)
     });
   };
 
   // Update specific rule properties
   const updateColorRule = (columnKey: string, ruleIndex: number, updates: Partial<ColorRule>) => {
+    const currentRules = Array.isArray(colorConfig?.[columnKey]) ? colorConfig[columnKey] : [];
     handleColorConfigChange({
       ...colorConfig,
-      [columnKey]: colorConfig[columnKey].map((rule, index) => 
+      [columnKey]: currentRules.map((rule, index) => 
         index === ruleIndex ? { ...rule, ...updates } : rule
       )
     });
@@ -618,8 +628,6 @@ export function FilterSidebar({
       budget: 'งบรัน',
       note: 'Note',
       status: 'สถานะ',
-      start: 'วันที่เปิด',
-      off: 'วันที่ปิด',
       captions: 'แคปชั่น',
       card: 'บัตร',
       cardNum: 'บัตร 4 ตัวท้าย',
@@ -650,22 +658,30 @@ export function FilterSidebar({
     return columnNames[column] || column;
   }, []);
 
-  // Memoize column count calculations
-  const visibleCount = React.useMemo(() => 
-    Object.values(visibleColumns).filter(Boolean).length, 
-    [visibleColumns]
-  );
+  // Memoize column count calculations - แยกคอลัมน์หลักกับ daily deposits (daily deposits ไม่แสดงในเมนู)
+  const { visibleCount, totalCount, mainVisibleCount, mainTotalCount } = React.useMemo(() => {
+    const entries = Object.entries(visibleColumns);
+    const mainColumns = entries.filter(([key]) => !key.startsWith('day'));
+    const dailyColumns = entries.filter(([key]) => key.startsWith('day'));
+    
+    console.log('🔍 FilterSidebar Column summary:');
+    console.log('  - Main columns (displayed in menu):', mainColumns.length);
+    console.log('  - Daily columns (hidden from menu):', dailyColumns.length);
+    console.log('  - Total columns:', entries.length);
+    
+    return {
+      visibleCount: mainColumns.filter(([, visible]) => visible).length, // เฉพาะคอลัมน์หลักที่แสดง
+      totalCount: mainColumns.length, // เฉพาะคอลัมน์หลัก
+      mainVisibleCount: mainColumns.filter(([, visible]) => visible).length,
+      mainTotalCount: mainColumns.length
+    };
+  }, [visibleColumns]);
   
-  const totalCount = React.useMemo(() => 
-    Object.keys(visibleColumns).length, 
-    [visibleColumns]
-  );
-
-  // Memoize column entries to prevent re-creation
-  const columnEntries = React.useMemo(() => 
-    Object.entries(visibleColumns), 
-    [visibleColumns]
-  );
+  // Memoize column entries to prevent re-creation - เฉพาะคอลัมน์หลัก
+  const columnEntries = React.useMemo(() => {
+    const entries = Object.entries(visibleColumns).filter(([key]) => !key.startsWith('day'));
+    return entries;
+  }, [visibleColumns]);
 
   // State for dropdown open/close
   const [isColumnDropdownOpen, setIsColumnDropdownOpen] = React.useState(false);
@@ -689,6 +705,13 @@ export function FilterSidebar({
       }, {} as ColumnVisibility);
       return noneVisible;
     });
+  }, [setVisibleColumns]);
+
+  const handleBulkColumnToggle = React.useCallback((updates: Record<string, boolean>) => {
+    setVisibleColumns((prev: ColumnVisibility) => ({
+      ...prev,
+      ...updates
+    }));
   }, [setVisibleColumns]);
 
   const handleSelectDefault = React.useCallback(() => {
@@ -914,6 +937,8 @@ export function FilterSidebar({
                         </button>
                       </div>
                     </div>
+                    
+                    {/* คอลัมน์หลักเท่านั้น - ไม่รวม daily deposits */}
                     {columnEntries.map(([column, isVisible]) => (
                       <CheckboxItem
                         key={column}
@@ -927,7 +952,7 @@ export function FilterSidebar({
                 </Select>
                 <div className="text-xs text-slate-600 dark:text-slate-400 mt-1">
                   {isHydrated && Object.keys(visibleColumns).length > 0
-                    ? `แสดง: ${visibleCount} / ${totalCount} คอลัมน์`
+                    ? `แสดง: ${visibleCount}/${totalCount} คอลัมน์`
                     : isHydrated
                       ? "กำลังโหลดคอลัมน์..."
                       : "กำลังโหลด..."
@@ -948,8 +973,8 @@ export function FilterSidebar({
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder={
-                      isHydrated && Object.keys(colorConfig).length > 0
-                        ? `ตั้งค่าสี (${Object.values(colorConfig).flat().filter(r => r.enabled).length} กฎ)`
+                      isHydrated && colorConfig && Object.keys(colorConfig).length > 0
+                        ? `ตั้งค่าสี (${Object.values(colorConfig).flat().filter(r => r?.enabled).length} กฎ)`
                         : isHydrated
                           ? "เลือกการตั้งค่าสี..."
                           : "กำลังโหลด..."
@@ -994,7 +1019,7 @@ export function FilterSidebar({
                     
                     <div className="max-h-80 overflow-y-auto">
                       {isHydrated && Object.keys(visibleColumns).map((columnKey) => {
-                        const rules = colorConfig[columnKey] || [];
+                        const rules = Array.isArray(colorConfig?.[columnKey]) ? colorConfig[columnKey] : [];
                         return (
                           <details key={columnKey} className="border-b border-slate-200 dark:border-slate-700 last:border-b-0">
                             <summary className="px-3 py-2 cursor-pointer hover:bg-slate-100/70 dark:hover:bg-slate-700/50 flex items-center justify-between">
@@ -1233,8 +1258,8 @@ export function FilterSidebar({
                   </SelectContent>
                 </Select>
                 <div className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-                  {isHydrated && Object.keys(colorConfig).length > 0
-                    ? `กฎสี: ${Object.values(colorConfig).flat().filter(r => r.enabled).length} / ${Object.values(colorConfig).flat().length} กฎ`
+                  {isHydrated && colorConfig && Object.keys(colorConfig).length > 0
+                    ? `กฎสี: ${Object.values(colorConfig).flat().filter(r => r?.enabled).length} / ${Object.values(colorConfig).flat().length} กฎ`
                     : isHydrated
                       ? "กำลังโหลดการตั้งค่าสี..."
                       : "กำลังโหลด..."

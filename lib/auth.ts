@@ -17,10 +17,10 @@ export const authOptions: NextAuthOptions = {
                         return null;
                     }
 
-                    const [rows]: any[] = await connection.execute(
+                    const [rows] = await connection.execute(
                         'SELECT * FROM users WHERE username = ?',
                         [credentials.username]
-                    );
+                    ) as [any[], any];
                     
                     if (rows.length === 0) {
                         return null;
@@ -78,9 +78,9 @@ export const authOptions: NextAuthOptions = {
         async session({ session, token }) {
             // ✅ ส่งข้อมูลจาก token ไปยัง session
             if (token && session.user) {
-                session.user.id = token.id;
-                session.user.name = token.name;
-                session.user.email = token.email;
+                (session.user as any).id = token.id;
+                session.user.name = token.name as string;
+                session.user.email = token.email as string;
                 
                 // ✅ อัพเดต last_seen ทุกครั้งที่มีการตรวจสอบ session
                 try {

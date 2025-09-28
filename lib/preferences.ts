@@ -44,6 +44,8 @@ export interface ThemeSettings {
   primaryColor?: string;
   backgroundColor?: string;
   isDarkMode?: boolean;
+  fontFamily?: string;
+  fontSize?: number;
   customColors?: {
     [key: string]: string;
   };
@@ -113,7 +115,7 @@ export class PreferencesAPI {
 
   // Check if error is authentication related (don't retry these)
   private static isAuthError(error: unknown): boolean {
-    return error?.status === 401 || error?.status === 403;
+    return (error as { status?: number })?.status === 401 || (error as { status?: number })?.status === 403;
   }
 
   private static getAuthHeaders() {
@@ -139,7 +141,7 @@ export class PreferencesAPI {
         if (response.status === 401) {
           console.warn('User not authenticated, preferences not available');
           const authError = new Error('Unauthorized');
-          (authError as unknown).status = 401;
+          (authError as Error & { status: number }).status = 401;
           throw authError;
         }
         
@@ -148,12 +150,12 @@ export class PreferencesAPI {
           const errorData = await response.json();
           console.error('API Error Details:', errorData);
           const apiError = new Error(errorData.error || 'API Error');
-          (apiError as unknown).status = response.status;
+          (apiError as Error & { status: number }).status = response.status;
           throw apiError;
         } catch {
           console.error('Could not parse error response');
           const apiError = new Error('API Error');
-          (apiError as unknown).status = response.status;
+          (apiError as Error & { status: number }).status = response.status;
           throw apiError;
         }
       }
@@ -217,7 +219,7 @@ export class PreferencesAPI {
           // Ignore parsing error
         }
         const apiError = new Error(errorMessage);
-        (apiError as any).status = response.status;
+        (apiError as Error & { status: number }).status = response.status;
         throw apiError;
       }
 

@@ -1,395 +1,692 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useTheme } from '@/lib/theme-context';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useEffect } from 'react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Palette, RotateCcw, Save, Check, Cookie } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useTheme } from '@/lib/theme-context';
 import CookieManager from '@/components/CookieManager';
+import { Palette, RotateCcw, Save, Check, Cookie, Type, Sliders, Eye } from 'lucide-react';
 
+// Primary color presets
 const primaryColorPresets = [
-  { name: 'Blue Ocean', value: '#2563eb', gradient: 'from-blue-500 to-blue-600' },
-  { name: 'Emerald Green', value: '#16a34a', gradient: 'from-emerald-500 to-emerald-600' },
-  { name: 'Royal Purple', value: '#9333ea', gradient: 'from-purple-500 to-purple-600' },
-  { name: 'Crimson Red', value: '#dc2626', gradient: 'from-red-500 to-red-600' },
-  { name: 'Sunset Orange', value: '#ea580c', gradient: 'from-orange-500 to-orange-600' },
-  { name: 'Pink Rose', value: '#db2777', gradient: 'from-pink-500 to-pink-600' },
-  { name: 'Indigo Night', value: '#4338ca', gradient: 'from-indigo-500 to-indigo-600' },
-  { name: 'Teal Ocean', value: '#0d9488', gradient: 'from-teal-500 to-teal-600' },
-  { name: 'Amber Gold', value: '#d97706', gradient: 'from-amber-500 to-amber-600' },
-  { name: 'Violet Dream', value: '#7c3aed', gradient: 'from-violet-500 to-violet-600' },
-  { name: 'Lime Fresh', value: '#65a30d', gradient: 'from-lime-500 to-lime-600' },
-  { name: 'Cyan Blue', value: '#0891b2', gradient: 'from-cyan-500 to-cyan-600' },
+  { name: 'Blue', value: '#2563eb' },
+  { name: 'Purple', value: '#7c3aed' },
+  { name: 'Pink', value: '#ec4899' },
+  { name: 'Red', value: '#dc2626' },
+  { name: 'Orange', value: '#ea580c' },
+  { name: 'Yellow', value: '#ca8a04' },
+  { name: 'Green', value: '#16a34a' },
+  { name: 'Teal', value: '#0d9488' },
+  { name: 'Cyan', value: '#0891b2' },
+  { name: 'Indigo', value: '#4f46e5' },
+  { name: 'Violet', value: '#8b5cf6' },
+  { name: 'Rose', value: '#f43f5e' }
 ];
 
+// Background color presets
 const backgroundColorPresets = [
-  // Solid Colors - Light
-  { name: 'Pure White', value: '#ffffff', preview: 'bg-white', border: 'border-gray-300', type: 'solid' },
-  { name: 'Soft Gray', value: '#f9fafb', preview: 'bg-gray-50', border: 'border-gray-300', type: 'solid' },
-  { name: 'Warm Cream', value: '#fefce8', preview: 'bg-yellow-50', border: 'border-yellow-200', type: 'solid' },
-  { name: 'Sky Blue', value: '#eff6ff', preview: 'bg-blue-50', border: 'border-blue-200', type: 'solid' },
-  { name: 'Mint Green', value: '#f0fdf4', preview: 'bg-green-50', border: 'border-green-200', type: 'solid' },
-  { name: 'Lavender', value: '#faf5ff', preview: 'bg-purple-50', border: 'border-purple-200', type: 'solid' },
-  { name: 'Rose Pink', value: '#fdf2f8', preview: 'bg-pink-50', border: 'border-pink-200', type: 'solid' },
-  { name: 'Warm Beige', value: '#fafaf9', preview: 'bg-stone-50', border: 'border-stone-300', type: 'solid' },
+  // Solid colors
+  { name: 'White', value: '#ffffff' },
+  { name: 'Light Gray', value: '#f8fafc' },
+  { name: 'Gray', value: '#f1f5f9' },
+  { name: 'Cool Gray', value: '#f3f4f6' },
+  { name: 'Warm Gray', value: '#fafaf9' },
+  { name: 'Stone', value: '#f5f5f4' },
+  { name: 'Light Blue', value: '#eff6ff' },
+  { name: 'Light Purple', value: '#faf5ff' },
+  { name: 'Light Pink', value: '#fdf2f8' },
+  { name: 'Light Green', value: '#f0fdf4' },
+  { name: 'Light Yellow', value: '#fefce8' },
+  { name: 'Light Orange', value: '#fff7ed' },
   
-  // Solid Colors - Dark
-  { name: 'Deep Dark', value: '#0f172a', preview: 'bg-slate-900', border: 'border-slate-700', type: 'solid' },
-  { name: 'Midnight Blue', value: '#1e293b', preview: 'bg-slate-800', border: 'border-slate-600', type: 'solid' },
-  { name: 'Charcoal Gray', value: '#374151', preview: 'bg-gray-700', border: 'border-gray-500', type: 'solid' },
-  { name: 'Navy Blue', value: '#1e3a8a', preview: 'bg-blue-800', border: 'border-blue-600', type: 'solid' },
-  
-  // Gradient Backgrounds
-  { name: 'Ocean Breeze', value: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', preview: 'bg-gradient-to-br from-blue-500 to-purple-600', border: 'border-blue-300', type: 'gradient' },
-  { name: 'Sunset Glow', value: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', preview: 'bg-gradient-to-br from-pink-400 to-red-500', border: 'border-pink-300', type: 'gradient' },
-  { name: 'Forest Mist', value: 'linear-gradient(135deg, #c3f0ca 0%, #57ae6b 100%)', preview: 'bg-gradient-to-br from-green-200 to-green-600', border: 'border-green-300', type: 'gradient' },
-  { name: 'Golden Hour', value: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)', preview: 'bg-gradient-to-br from-yellow-200 to-orange-400', border: 'border-orange-300', type: 'gradient' },
-  { name: 'Arctic Aurora', value: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)', preview: 'bg-gradient-to-br from-teal-200 to-pink-300', border: 'border-teal-300', type: 'gradient' },
-  { name: 'Deep Space', value: 'linear-gradient(135deg, #2c3e50 0%, #000428 100%)', preview: 'bg-gradient-to-br from-slate-700 to-slate-900', border: 'border-slate-500', type: 'gradient' },
-  { name: 'Purple Rain', value: 'linear-gradient(135deg, #8360c3 0%, #2ebf91 100%)', preview: 'bg-gradient-to-br from-purple-500 to-teal-500', border: 'border-purple-300', type: 'gradient' },
-  { name: 'Cherry Blossom', value: 'linear-gradient(135deg, #ffeef8 0%, #f8d7da 100%)', preview: 'bg-gradient-to-br from-pink-50 to-rose-200', border: 'border-pink-300', type: 'gradient' },
-  { name: 'Electric Blue', value: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', preview: 'bg-gradient-to-br from-blue-400 to-cyan-400', border: 'border-blue-300', type: 'gradient' },
-  { name: 'Emerald Dream', value: 'linear-gradient(135deg, #a8e6cf 0%, #88d8a3 100%)', preview: 'bg-gradient-to-br from-emerald-300 to-green-500', border: 'border-emerald-300', type: 'gradient' },
-  { name: 'Royal Purple', value: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', preview: 'bg-gradient-to-br from-indigo-600 to-purple-700', border: 'border-purple-300', type: 'gradient' },
-  { name: 'Fire Sunset', value: 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)', preview: 'bg-gradient-to-br from-red-300 to-pink-200', border: 'border-red-300', type: 'gradient' },
+  // Gradients
+  { name: 'Blue Gradient', value: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
+  { name: 'Purple Gradient', value: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' },
+  { name: 'Ocean Gradient', value: 'linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%)' },
+  { name: 'Sunset Gradient', value: 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)' },
+  { name: 'Forest Gradient', value: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)' },
+  { name: 'Aurora Gradient', value: 'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)' },
+  { name: 'Fire Gradient', value: 'linear-gradient(135deg, #ff8a80 0%, #ffcc02 100%)' },
+  { name: 'Ice Gradient', value: 'linear-gradient(135deg, #74b9ff 0%, #0984e3 100%)' }
+];
+
+// Font presets
+const fontPresets = [
+  { name: 'Inter', value: 'Inter, system-ui, -apple-system, sans-serif' },
+  { name: 'Roboto', value: 'Roboto, system-ui, -apple-system, sans-serif' },
+  { name: 'Open Sans', value: '"Open Sans", system-ui, -apple-system, sans-serif' },
+  { name: 'Lato', value: 'Lato, system-ui, -apple-system, sans-serif' },
+  { name: 'Poppins', value: 'Poppins, system-ui, -apple-system, sans-serif' },
+  { name: 'Montserrat', value: 'Montserrat, system-ui, -apple-system, sans-serif' },
+  { name: 'Source Sans', value: '"Source Sans Pro", system-ui, -apple-system, sans-serif' },
+  { name: 'Nunito', value: 'Nunito, system-ui, -apple-system, sans-serif' },
+  { name: 'Kanit', value: 'Kanit, system-ui, -apple-system, sans-serif' },
+  { name: 'Sarabun', value: 'Sarabun, system-ui, -apple-system, sans-serif' },
+  { name: 'Prompt', value: 'Prompt, system-ui, -apple-system, sans-serif' },
+  { name: 'Noto Thai', value: '"Noto Sans Thai", system-ui, -apple-system, sans-serif' }
+];
+
+// Font size options
+const fontSizeOptions = [
+  { name: 'เล็กมาก', value: 12 },
+  { name: 'เล็ก', value: 13 },
+  { name: 'ปกติ', value: 14 },
+  { name: 'ใหญ่', value: 16 },
+  { name: 'ใหญ่มาก', value: 18 },
+  { name: 'ใหญ่พิเศษ', value: 20 },
+  { name: 'ใหญ่สุด', value: 22 }
 ];
 
 export default function SettingsPage() {
-  const { colors, setColors, resetToDefaults } = useTheme();
+  const { colors, fonts, setColors, setFonts, resetToDefaults } = useTheme();
+  
   const [tempColors, setTempColors] = useState(colors);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [tempFonts, setTempFonts] = useState(fonts);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-  // Sync tempColors when colors change from context
   useEffect(() => {
-    console.log('Settings: colors changed from context', colors);
     setTempColors(colors);
+    setTempFonts(fonts);
     setIsLoading(false);
-  }, [colors]);
+  }, [colors, fonts]);
+
+  useEffect(() => {
+    const hasColorChanges = tempColors.primary !== colors.primary || tempColors.background !== colors.background;
+    const hasFontChanges = tempFonts.family !== fonts.family || tempFonts.size !== fonts.size;
+    setHasUnsavedChanges(hasColorChanges || hasFontChanges);
+  }, [tempColors, tempFonts, colors, fonts]);
 
   const handleColorChange = (type: 'primary' | 'background', value: string) => {
     setTempColors(prev => ({ ...prev, [type]: value }));
-    setHasUnsavedChanges(true);
+  };
+
+  const handleFontChange = (type: 'family' | 'size', value: string | number) => {
+    setTempFonts(prev => ({ ...prev, [type]: value }));
   };
 
   const handleSaveColors = () => {
-    console.log('Saving colors:', tempColors);
+    console.log('Saving colors and fonts:', tempColors, tempFonts);
     setColors(tempColors);
+    setFonts(tempFonts);
     setHasUnsavedChanges(false);
     
     // Force a re-render to show changes immediately
     setTimeout(() => {
-      console.log('Colors saved successfully');
+      console.log('Settings saved successfully');
     }, 100);
   };
 
   const handleResetColors = () => {
     setTempColors(colors);
+    setTempFonts(fonts);
     setHasUnsavedChanges(false);
   };
 
   const handleResetToDefaults = () => {
     resetToDefaults();
     setTempColors({ primary: '#2563eb', background: '#ffffff' });
+    setTempFonts({ family: 'Inter, system-ui, -apple-system, sans-serif', size: 14 });
     setHasUnsavedChanges(false);
   };
 
   return (
-    <div className="h-full overflow-auto bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
-      <div className="max-w-4xl mx-auto p-6 space-y-6">
+    <div className="h-screen overflow-y-auto bg-gradient-to-br from-gray-50/80 via-white to-blue-50/30 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
+      <div className="max-w-7xl mx-auto px-4 py-4">
+        
+        {/* Page Header - Compact */}
+        <div className="text-center mb-4">
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-1">
+            การตั้งค่าระบบ
+          </h1>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            ปรับแต่งธีม สี และฟอนต์ตามความต้องการของคุณ
+          </p>
+        </div>
         
         {isLoading && (
           <div className="text-center py-8">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <p className="mt-2 text-gray-600 dark:text-gray-400">กำลังโหลดการตั้งค่า...</p>
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
+            <p className="mt-3 text-gray-600 dark:text-gray-400">กำลังโหลดการตั้งค่า...</p>
           </div>
         )}
         
         {!isLoading && (
           <>
-            {/* Cookie Management Section */}
-            <Card className="backdrop-blur-sm bg-white/60 dark:bg-gray-800/60 border-0 shadow-xl">
-              <CardHeader className="pb-4">
-                <CardTitle className="flex items-center gap-3 text-xl">
-                  <div className="p-2 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg">
-                    <Cookie className="h-5 w-5 text-white" />
+            {/* Compact Action Bar */}
+            <div className="sticky top-4 z-20 mb-6 p-3 bg-white/80 dark:bg-gray-800/80 backdrop-blur-md rounded-xl border border-gray-200/60 dark:border-gray-700/60 shadow-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Button
+                    onClick={handleResetToDefaults}
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-2 px-3 py-1.5 border-2 border-gray-300 hover:border-gray-400 dark:border-gray-600 dark:hover:border-gray-500 rounded-lg text-sm"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    รีเซ็ต
+                  </Button>
+                  
+                  <div className="hidden md:block text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2.5 py-1.5 rounded-lg">
+                    <span>สี: <strong className="text-gray-700 dark:text-gray-300">{colors.primary}</strong></span>
+                    <span className="ml-3">ฟอนต์: <strong className="text-gray-700 dark:text-gray-300">{fonts.family.split(',')[0]} ({fonts.size}px)</strong></span>
                   </div>
-                  การจัดการคุกกี้
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <CookieManager />
-              </CardContent>
-            </Card>
-
-            {/* Live Preview Section */}
-        <Card className="backdrop-blur-sm bg-white/60 dark:bg-gray-800/60 border-0 shadow-xl">
-          <CardHeader className="pb-4">
-            <CardTitle className="flex items-center gap-3 text-xl">
-              <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg">
-                <div className="w-5 h-5 bg-white rounded"></div>
-              </div>
-              ตัวอย่างสีธีม
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div 
-              className="p-6 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600"
-              style={{
-                background: tempColors.background.startsWith('linear-gradient') 
-                  ? tempColors.background 
-                  : tempColors.background,
-                color: (() => {
-                  if (tempColors.background.startsWith('linear-gradient')) {
-                    return '#1f2937'; // Default dark text for gradients
-                  }
-                  // For solid colors, determine if it's dark or light
-                  if (tempColors.background.startsWith('#')) {
-                    const hex = tempColors.background.replace('#', '');
-                    const r = parseInt(hex.substr(0, 2), 16);
-                    const g = parseInt(hex.substr(2, 2), 16);
-                    const b = parseInt(hex.substr(4, 2), 16);
-                    const brightness = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-                    return brightness > 155 ? '#1f2937' : '#ffffff';
-                  }
-                  return '#1f2937';
-                })()
-              }}
-            >
-              <div className="flex items-center gap-4 flex-wrap">
-                <button 
-                  className="px-4 py-2 rounded-lg text-white font-medium transition-all hover:scale-105 shadow-lg"
-                  style={{ backgroundColor: tempColors.primary }}
-                >
-                  ปุ่มหลัก
-                </button>
-                <button 
-                  className="px-4 py-2 rounded-lg border-2 font-medium transition-all hover:scale-105"
-                  style={{ 
-                    borderColor: tempColors.primary,
-                    color: tempColors.primary
-                  }}
-                >
-                  ปุ่มรอง
-                </button>
-                <div 
-                  className="px-3 py-1 rounded-full text-xs font-medium text-white"
-                  style={{ backgroundColor: tempColors.primary }}
-                >
-                  แท็ก
                 </div>
-              </div>
-              <p className="mt-4 opacity-75">
-                นี่คือตัวอย่างการแสดงผลของสีธีมที่คุณเลือก สีจะมีผลกับปุ่มและองค์ประกอบต่างๆ ในแอปพลิเคชัน
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Primary Color Settings */}
-        <Card className="backdrop-blur-sm bg-white/60 dark:bg-gray-800/60 border-0 shadow-xl">
-          <CardHeader className="pb-4">
-            <CardTitle className="flex items-center gap-3 text-xl">
-              <div className="p-2 bg-gradient-to-br from-pink-500 to-rose-500 rounded-lg">
-                <Palette className="h-5 w-5 text-white" />
-              </div>
-              สีธีมหลัก
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-              {primaryColorPresets.map((preset) => {
-                const isSelected = tempColors.primary === preset.value;
-                return (
-                  <button
-                    key={preset.value}
-                    onClick={() => handleColorChange('primary', preset.value)}
-                    className={`group relative p-3 rounded-xl border-2 transition-all duration-300 hover:scale-105 ${
-                      isSelected
-                        ? 'border-gray-400 dark:border-gray-500 shadow-lg ring-2 ring-blue-500 ring-opacity-50'
-                        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
+                
+                <div className="flex items-center gap-2">
+                  {hasUnsavedChanges && (
+                    <>
+                      <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2.5 py-1.5 rounded-lg">
+                        <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></div>
+                        <span className="text-xs font-medium">มีการเปลี่ยนแปลง</span>
+                      </div>
+                      <Button
+                        onClick={handleResetColors}
+                        variant="outline"
+                        size="sm"
+                        className="px-3 py-1.5 rounded-lg border-2 border-gray-300 hover:border-gray-400 dark:border-gray-600 dark:hover:border-gray-500 text-sm"
+                      >
+                        ยกเลิก
+                      </Button>
+                    </>
+                  )}
+                  <Button
+                    onClick={handleSaveColors}
+                    disabled={!hasUnsavedChanges}
+                    size="sm"
+                    className={`flex items-center gap-2 px-4 py-1.5 rounded-lg font-medium text-sm transition-all ${
+                      hasUnsavedChanges 
+                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg hover:shadow-xl text-white' 
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     }`}
                   >
-                    <div className="flex flex-col items-center gap-2">
-                      <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${preset.gradient} shadow-lg relative overflow-hidden`}>
-                        {isSelected && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                            <Check className="h-5 w-5 text-white" />
-                          </div>
-                        )}
-                      </div>
-                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300 text-center leading-tight">
-                        {preset.name}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            
-            <div className="flex items-center justify-center gap-4 p-4 bg-gray-50/70 dark:bg-gray-700/40 rounded-xl">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">สีกำหนดเอง:</label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="color"
-                  value={tempColors.primary}
-                  onChange={(e) => handleColorChange('primary', e.target.value)}
-                  className="w-12 h-8 rounded-lg border-2 border-gray-300 dark:border-gray-600 cursor-pointer"
-                />
-                <span className="text-sm text-gray-600 dark:text-gray-400 font-mono bg-white dark:bg-gray-800 px-3 py-1 rounded-lg border">
-                  {tempColors.primary}
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Background Color Settings */}
-        <Card className="backdrop-blur-sm bg-white/60 dark:bg-gray-800/60 border-0 shadow-xl">
-          <CardHeader className="pb-4">
-            <CardTitle className="flex items-center gap-3 text-xl">
-              <div className="p-2 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-lg">
-                <div className="w-5 h-5 bg-gradient-to-br from-white to-gray-200 rounded"></div>
-              </div>
-              สีพื้นหลัง
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Solid Colors Section */}
-            <div>
-              <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-4">สีพื้นธรรมดา</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {backgroundColorPresets.filter(preset => preset.type === 'solid').map((preset) => {
-                  const isSelected = tempColors.background === preset.value;
-                  return (
-                    <button
-                      key={preset.name}
-                      onClick={() => handleColorChange('background', preset.value)}
-                      className={`group relative p-3 rounded-xl border-2 transition-all duration-300 hover:scale-105 ${
-                        isSelected
-                          ? `${preset.border} shadow-lg ring-2 ring-blue-500 ring-opacity-50`
-                          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="flex flex-col items-center gap-2">
-                        <div className={`w-12 h-8 rounded-lg ${preset.preview} border border-gray-200 dark:border-gray-600 relative overflow-hidden shadow-sm`}>
-                          {isSelected && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/10">
-                              <Check className="h-4 w-4 text-gray-800" />
-                            </div>
-                          )}
-                        </div>
-                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300 text-center leading-tight">
-                          {preset.name}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Gradient Colors Section */}
-            <div>
-              <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-4">สีกราเดี้ยน</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {backgroundColorPresets.filter(preset => preset.type === 'gradient').map((preset) => {
-                  const isSelected = tempColors.background === preset.value;
-                  return (
-                    <button
-                      key={preset.name}
-                      onClick={() => handleColorChange('background', preset.value)}
-                      className={`group relative p-3 rounded-xl border-2 transition-all duration-300 hover:scale-105 ${
-                        isSelected
-                          ? `${preset.border} shadow-lg ring-2 ring-blue-500 ring-opacity-50`
-                          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="flex flex-col items-center gap-2">
-                        <div className={`w-16 h-8 rounded-lg ${preset.preview} border border-gray-200 dark:border-gray-600 relative overflow-hidden shadow-sm`}>
-                          {isSelected && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/10">
-                              <Check className="h-4 w-4 text-white drop-shadow-sm" />
-                            </div>
-                          )}
-                        </div>
-                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300 text-center leading-tight">
-                          {preset.name}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            
-            <div className="flex items-center justify-center gap-4 p-4 bg-gray-50/70 dark:bg-gray-700/40 rounded-xl">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">สีกำหนดเอง:</label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="color"
-                  value={tempColors.background.startsWith('#') ? tempColors.background : '#ffffff'}
-                  onChange={(e) => handleColorChange('background', e.target.value)}
-                  className="w-12 h-8 rounded-lg border-2 border-gray-300 dark:border-gray-600 cursor-pointer"
-                />
-                <span className="text-sm text-gray-600 dark:text-gray-400 font-mono bg-white dark:bg-gray-800 px-3 py-1 rounded-lg border max-w-[200px] truncate">
-                  {tempColors.background}
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Enhanced Action Buttons */}
-        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50/70 to-gray-100/70 dark:from-gray-800/60 dark:to-gray-700/60 rounded-xl border border-gray-200/50 dark:border-gray-600/50 backdrop-blur-sm">
-          <div className="flex flex-col gap-1">
-            <Button
-              onClick={handleResetToDefaults}
-              variant="outline"
-              className="flex items-center gap-2 px-4 py-2 border-2 hover:bg-gray-50 dark:hover:bg-gray-800"
-            >
-              <RotateCcw className="h-4 w-4" />
-              รีเซ็ตเป็นค่าเริ่มต้น
-            </Button>
-            <div className="text-xs text-gray-500 dark:text-gray-400">
-              Primary: {colors.primary} | Background: {colors.background.length > 20 ? 'Gradient' : colors.background}
-              <br />
-              Temp: {tempColors.primary} | {tempColors.background.length > 20 ? 'Gradient' : tempColors.background}
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            {hasUnsavedChanges && (
-              <>
-                <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
-                  <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
-                  <span className="text-sm font-medium">มีการเปลี่ยนแปลงที่ยังไม่บันทึก</span>
+                    <Save className="h-3.5 w-3.5" />
+                    บันทึก
+                  </Button>
                 </div>
-                <Button
-                  onClick={handleResetColors}
-                  variant="outline"
-                  size="sm"
-                  className="px-3 py-2"
-                >
-                  ยกเลิก
-                </Button>
-              </>
-            )}
-            <Button
-              onClick={handleSaveColors}
-              disabled={!hasUnsavedChanges}
-              className={`flex items-center gap-2 px-4 py-2 transition-all ${
-                hasUnsavedChanges 
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg' 
-                  : ''
-              }`}
-            >
-              <Save className="h-4 w-4" />
-              บันทึกการเปลี่ยนแปลง
-            </Button>
-          </div>
-        </div>
+              </div>
+            </div>
+
+            {/* 3 Columns Compact Grid */}
+            <div className="grid lg:grid-cols-3 gap-4">
+              
+              {/* Column 1: Theme Preview & Primary Colors */}
+              <div className="space-y-4">
+                {/* Live Theme Preview - Compact */}
+                <Card className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm border-0 shadow-lg rounded-xl overflow-hidden">
+                  <CardHeader className="pb-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20">
+                    <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                      <div className="p-1.5 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg shadow-md">
+                        <div className="w-3 h-3 bg-white rounded-sm"></div>
+                      </div>
+                      <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                        ตัวอย่างธีม
+                      </span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4">
+                    <div 
+                      className="p-4 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 transition-all duration-300"
+                      style={{
+                        background: tempColors.background.startsWith('linear-gradient') 
+                          ? tempColors.background 
+                          : tempColors.background,
+                        color: (() => {
+                          if (tempColors.background.startsWith('linear-gradient')) {
+                            return '#1f2937';
+                          }
+                          if (tempColors.background.startsWith('#')) {
+                            const hex = tempColors.background.replace('#', '');
+                            const r = parseInt(hex.substr(0, 2), 16);
+                            const g = parseInt(hex.substr(2, 2), 16);
+                            const b = parseInt(hex.substr(4, 2), 16);
+                            const brightness = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+                            return brightness > 155 ? '#1f2937' : '#ffffff';
+                          }
+                          return '#1f2937';
+                        })()
+                      }}
+                    >
+                      <div className="flex items-center gap-2 flex-wrap mb-3">
+                        <button 
+                          className="px-3 py-1.5 rounded-lg text-white font-medium transition-all hover:scale-105 shadow-md text-sm"
+                          style={{ backgroundColor: tempColors.primary }}
+                        >
+                          ปุ่มหลัก
+                        </button>
+                        <button 
+                          className="px-3 py-1.5 rounded-lg border-2 font-medium transition-all hover:scale-105 text-sm"
+                          style={{ 
+                            borderColor: tempColors.primary,
+                            color: tempColors.primary
+                          }}
+                        >
+                          ปุ่มรอง
+                        </button>
+                        <div 
+                          className="px-2 py-1 rounded-full text-xs font-semibold text-white shadow-sm"
+                          style={{ backgroundColor: tempColors.primary }}
+                        >
+                          แท็ก
+                        </div>
+                      </div>
+                      <p className="text-xs opacity-80 leading-relaxed">
+                        ตัวอย่างการแสดงผลของธีมและสีที่เลือก
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Primary Colors - Compact */}
+                <Card className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm border-0 shadow-lg rounded-xl overflow-hidden">
+                  <CardHeader className="pb-2 bg-gradient-to-r from-pink-50 to-rose-50 dark:from-pink-900/20 dark:to-rose-900/20">
+                    <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                      <div className="p-1.5 bg-gradient-to-br from-pink-500 to-rose-500 rounded-lg shadow-md">
+                        <Palette className="h-3 w-3 text-white" />
+                      </div>
+                      <span className="bg-gradient-to-r from-pink-600 to-rose-600 bg-clip-text text-transparent">
+                        สีธีมหลัก
+                      </span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4">
+                    <div className="grid grid-cols-4 gap-2">
+                      {primaryColorPresets.map((preset) => {
+                        const isSelected = tempColors.primary === preset.value;
+                        return (
+                          <button
+                            key={preset.value}
+                            onClick={() => handleColorChange('primary', preset.value)}
+                            className={`group relative p-2 rounded-xl border-2 transition-all duration-300 hover:scale-105 ${
+                              isSelected
+                                ? 'border-gray-400 dark:border-gray-500 shadow-lg ring-2 ring-blue-500/30'
+                                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 hover:shadow-md'
+                            }`}
+                            title={preset.name}
+                          >
+                            <div 
+                              className="w-8 h-8 rounded-lg shadow-sm border border-white/20"
+                              style={{ backgroundColor: preset.value }}
+                            />
+                            {isSelected && (
+                              <div className="absolute -top-0.5 -right-0.5 bg-blue-500 rounded-full p-0.5">
+                                <Check className="h-2.5 w-2.5 text-white" />
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Column 2: Background Colors & Cookie Management */}
+              <div className="space-y-4">
+                {/* Background Colors - Compact */}
+                <Card className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm border-0 shadow-lg rounded-xl overflow-hidden">
+                  <CardHeader className="pb-2 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20">
+                    <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                      <div className="p-1.5 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg shadow-md">
+                        <Palette className="h-3 w-3 text-white" />
+                      </div>
+                      <span className="bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                        สีพื้นหลัง
+                      </span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 space-y-3">
+                    {/* Solid Colors */}
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-1.5">
+                        <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                        สีพื้นฐาน
+                      </h4>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {backgroundColorPresets.slice(0, 12).map((preset) => {
+                          const isSelected = tempColors.background === preset.value;
+                          return (
+                            <button
+                              key={preset.value}
+                              onClick={() => handleColorChange('background', preset.value)}
+                              className={`group relative p-1.5 rounded-lg border-2 transition-all duration-300 hover:scale-105 ${
+                                isSelected
+                                  ? 'border-gray-400 dark:border-gray-500 shadow-lg ring-2 ring-green-500/30'
+                                  : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 hover:shadow-md'
+                              }`}
+                              title={preset.name}
+                            >
+                              <div 
+                                className="w-full h-4 rounded shadow-sm border border-white/20"
+                                style={{ backgroundColor: preset.value }}
+                              />
+                              {isSelected && (
+                                <div className="absolute -top-0.5 -right-0.5 bg-green-500 rounded-full p-0.5">
+                                  <Check className="h-2 w-2 text-white" />
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Gradient Colors */}
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-1.5">
+                        <div className="w-2 h-2 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full"></div>
+                        สีไล่ระดับ
+                      </h4>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {backgroundColorPresets.slice(12).map((preset) => {
+                          const isSelected = tempColors.background === preset.value;
+                          return (
+                            <button
+                              key={preset.value}
+                              onClick={() => handleColorChange('background', preset.value)}
+                              className={`group relative p-1.5 rounded-lg border-2 transition-all duration-300 hover:scale-105 ${
+                                isSelected
+                                  ? 'border-gray-400 dark:border-gray-500 shadow-lg ring-2 ring-green-500/30'
+                                  : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 hover:shadow-md'
+                              }`}
+                              title={preset.name}
+                            >
+                              <div 
+                                className="w-full h-4 rounded shadow-sm border border-white/20"
+                                style={{ background: preset.value }}
+                              />
+                              {isSelected && (
+                                <div className="absolute -top-0.5 -right-0.5 bg-green-500 rounded-full p-0.5">
+                                  <Check className="h-2 w-2 text-white" />
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Cookie Management - Compact */}
+                <Card className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm border-0 shadow-lg rounded-xl overflow-hidden">
+                  <CardHeader className="pb-2 bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20">
+                    <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                      <div className="p-1.5 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg shadow-md">
+                        <Cookie className="h-3 w-3 text-white" />
+                      </div>
+                      <span className="bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+                        การจัดการคุกกี้
+                      </span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4">
+                    <CookieManager />
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Column 3: Font Settings - Compact */}
+              <div className="space-y-4">
+                {/* Font Family - Compact */}
+                <Card className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm border-0 shadow-lg rounded-xl overflow-hidden">
+                  <CardHeader className="pb-2 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20">
+                    <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                      <div className="p-1.5 bg-gradient-to-br from-indigo-500 to-blue-500 rounded-lg shadow-md">
+                        <Type className="h-3 w-3 text-white" />
+                      </div>
+                      <span className="bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">
+                        ฟอนต์
+                      </span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 space-y-3">
+                    {/* Main Fonts - Compact Grid */}
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {fontPresets.slice(0, 9).map((preset) => {
+                        const isSelected = tempFonts.family === preset.value;
+                        return (
+                          <button
+                            key={preset.value}
+                            onClick={() => handleFontChange('family', preset.value)}
+                            className={`group relative p-2 rounded-lg border-2 transition-all duration-300 hover:scale-105 ${
+                              isSelected
+                                ? 'border-indigo-400 shadow-lg ring-2 ring-indigo-500/30 bg-indigo-50/50 dark:bg-indigo-900/20'
+                                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 hover:shadow-md'
+                            }`}
+                            title={preset.name}
+                          >
+                            <div className="flex flex-col items-center gap-1">
+                              <div 
+                                className="text-sm font-medium transition-all"
+                                style={{ fontFamily: preset.value }}
+                              >
+                                Aa
+                              </div>
+                              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 text-center leading-tight">
+                                {preset.name}
+                              </span>
+                              {isSelected && (
+                                <div className="absolute -top-0.5 -right-0.5 bg-indigo-500 rounded-full p-0.5">
+                                  <Check className="h-2 w-2 text-white" />
+                                </div>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    
+                    {/* Thai Fonts - Mini */}
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1.5">
+                        <div className="w-2 h-2 bg-gradient-to-r from-indigo-500 to-blue-500 rounded-full"></div>
+                        ฟอนต์ไทย
+                      </h4>
+                      <div className="grid grid-cols-3 gap-1">
+                        {fontPresets.slice(9).map((preset) => {
+                          const isSelected = tempFonts.family === preset.value;
+                          return (
+                            <button
+                              key={preset.value}
+                              onClick={() => handleFontChange('family', preset.value)}
+                              className={`group relative p-1.5 rounded border transition-all duration-300 hover:scale-105 ${
+                                isSelected
+                                  ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-900/20'
+                                  : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
+                              }`}
+                              title={preset.name}
+                            >
+                              <div className="flex flex-col items-center gap-0.5">
+                                <div 
+                                  className="text-xs font-medium"
+                                  style={{ fontFamily: preset.value }}
+                                >
+                                  Aa
+                                </div>
+                                <span className="text-xs text-gray-600 dark:text-gray-400 text-center leading-tight">
+                                  {preset.name.replace(/[^ก-๙a-zA-Z0-9\s]/g, '')}
+                                </span>
+                              </div>
+                              {isSelected && (
+                                <div className="absolute -top-0.5 -right-0.5 bg-indigo-500 rounded-full p-0.5">
+                                  <div className="w-1 h-1 bg-white rounded-full" />
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Font Size - Compact */}
+                <Card className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm border-0 shadow-lg rounded-xl overflow-hidden">
+                  <CardHeader className="pb-2 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20">
+                    <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                      <div className="p-1.5 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg shadow-md">
+                        <Sliders className="h-3 w-3 text-white" />
+                      </div>
+                      <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                        ขนาด
+                      </span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 space-y-3">
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {fontSizeOptions.slice(0, 6).map((sizeOption) => {
+                        const isSelected = tempFonts.size === sizeOption.value;
+                        return (
+                          <button
+                            key={sizeOption.value}
+                            onClick={() => handleFontChange('size', sizeOption.value)}
+                            className={`group relative p-2 rounded-lg border-2 transition-all duration-300 hover:scale-105 ${
+                              isSelected
+                                ? 'border-purple-400 shadow-lg ring-2 ring-purple-500/30 bg-purple-50/50 dark:bg-purple-900/20'
+                                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 hover:shadow-md'
+                            }`}
+                            title={`${sizeOption.name} (${sizeOption.value}px)`}
+                          >
+                            <div className="flex flex-col items-center gap-1">
+                              <div 
+                                className="font-semibold transition-all"
+                                style={{ fontSize: `${Math.min(sizeOption.value + 2, 18)}px` }}
+                              >
+                                Aa
+                              </div>
+                              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 text-center">
+                                {sizeOption.name}
+                              </span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                                {sizeOption.value}px
+                              </span>
+                              {isSelected && (
+                                <div className="absolute -top-0.5 -right-0.5 bg-purple-500 rounded-full p-0.5">
+                                  <Check className="h-2 w-2 text-white" />
+                                </div>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    
+                    {/* Last size option */}
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {fontSizeOptions.slice(6).map((sizeOption) => {
+                        const isSelected = tempFonts.size === sizeOption.value;
+                        return (
+                          <button
+                            key={sizeOption.value}
+                            onClick={() => handleFontChange('size', sizeOption.value)}
+                            className={`group relative p-2 rounded-lg border-2 transition-all duration-300 hover:scale-105 ${
+                              isSelected
+                                ? 'border-purple-400 shadow-lg ring-2 ring-purple-500/30 bg-purple-50/50 dark:bg-purple-900/20'
+                                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 hover:shadow-md'
+                            }`}
+                            title={`${sizeOption.name} (${sizeOption.value}px)`}
+                          >
+                            <div className="flex flex-col items-center gap-1">
+                              <div 
+                                className="font-semibold transition-all"
+                                style={{ fontSize: `${Math.min(sizeOption.value + 2, 18)}px` }}
+                              >
+                                Aa
+                              </div>
+                              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 text-center">
+                                {sizeOption.name}
+                              </span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                                {sizeOption.value}px
+                              </span>
+                              {isSelected && (
+                                <div className="absolute -top-0.5 -right-0.5 bg-purple-500 rounded-full p-0.5">
+                                  <Check className="h-2 w-2 text-white" />
+                                </div>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    
+                    {/* Custom Size Input - Mini */}
+                    <div className="bg-gray-50/70 dark:bg-gray-700/40 p-2 rounded-lg border border-dashed border-gray-300 dark:border-gray-600">
+                      <div className="flex items-center justify-center gap-2">
+                        <Label htmlFor="customFontSize" className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                          กำหนด:
+                        </Label>
+                        <div className="flex items-center gap-1">
+                          <Input
+                            id="customFontSize"
+                            type="number"
+                            min="10"
+                            max="24"
+                            value={tempFonts.size}
+                            onChange={(e) => handleFontChange('size', parseInt(e.target.value) || 14)}
+                            className="w-16 h-7 text-center font-mono border rounded-lg text-xs"
+                          />
+                          <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">px</span>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Font Preview - Compact */}
+                <Card className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm border-0 shadow-lg rounded-xl overflow-hidden">
+                  <CardHeader className="pb-2 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20">
+                    <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                      <div className="p-1.5 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-lg shadow-md">
+                        <Eye className="h-3 w-3 text-white" />
+                      </div>
+                      <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+                        ตัวอย่าง
+                      </span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4">
+                    <div 
+                      className="p-3 bg-gradient-to-br from-gray-50 to-gray-100/50 dark:from-gray-700/40 dark:to-gray-600/40 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 transition-all duration-300"
+                      style={{ 
+                        fontFamily: tempFonts.family,
+                        fontSize: `${tempFonts.size}px`
+                      }}
+                    >
+                      <div className="space-y-2">
+                        <div className="font-bold text-gray-800 dark:text-gray-200">หัวข้อใหญ่</div>
+                        <div className="font-semibold text-gray-700 dark:text-gray-300">Main Title</div>
+                        
+                        <div className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed">
+                          ข้อความปกติภาษาไทยผสม English content สำหรับทดสอบ
+                        </div>
+                        
+                        <div className="text-xs text-gray-600 dark:text-gray-400">
+                          ข้อความขนาดเล็ก - Small text example
+                        </div>
+                        
+                        <div className="mt-3 p-2 bg-white/60 dark:bg-gray-600/30 rounded-lg border-l-2 border-emerald-500">
+                          <div className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">กล่องตัวอย่าง</div>
+                          <div className="text-xs text-gray-600 dark:text-gray-400">Example highlighted box</div>
+                        </div>
+                        
+                        <div className="mt-2 flex gap-1.5 flex-wrap">
+                          <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded text-xs font-medium">
+                            แท็ก
+                          </span>
+                          <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 rounded text-xs font-medium">
+                            Tag
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
           </>
         )}
       </div>

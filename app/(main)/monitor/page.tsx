@@ -1,6 +1,7 @@
 'use client';
 
 import DataTable from "@/components/DataTable";
+import { useTheme } from '@/lib/theme-context';
 import { Suspense } from "react";
 
 // Loading component
@@ -31,11 +32,10 @@ function LoadingDataTable() {
   );
 }
 
-import LogoutButton from "@/components/LogoutButton";
-
 export default function MonitorPage() {
+  
   return (
-    <div className="h-full w-full">
+    <div className="h-full w-full" data-page="monitor">
       <Suspense fallback={<LoadingDataTable />}>
         <DataTable />
       </Suspense>

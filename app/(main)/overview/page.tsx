@@ -5,24 +5,24 @@ import { useEffect, useState, memo, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { useTheme } from '@/lib/theme-context';
 import dayjs from 'dayjs';
 import 'dayjs/locale/th';
 import localizedFormat from 'dayjs/plugin/localizedFormat';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { DateRange } from 'react-day-picker';
-import { DateRangePickerWithPresets } from '@/components/date-range-picker-with-presets';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { teamGroups, cpmThresholds, costPerDepositThresholds, depositsMonthlyTargets, calculateDailyTarget, coverTargets } from '@/lib/config';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine, Label } from 'recharts';
+import { getChartFontSizes } from '@/lib/font-utils';
 import useSWR from 'swr';
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Wifi, TrendingUp, Settings, PlusCircle, XCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from '@/components/ui/input';
-import { Label as FormLabel } from '@/components/ui/label';
 import { toast } from 'sonner';
 
 dayjs.extend(localizedFormat);
@@ -592,6 +592,8 @@ const ColorSettingsPopover = memo(({ groupName, teamNames, settings, onSave }: {
 });
 
 export default function OverviewPage() {
+  const { effectiveTheme } = useTheme();
+  const chartFontSizes = getChartFontSizes();
   const [isClient, setIsClient] = useState(false);
   const [chartData, setChartData] = useState<{ cpm: TransformedChartData[], costPerDeposit: TransformedChartData[], deposits: TransformedChartData[], cover: TransformedChartData[] }>({ cpm: [], costPerDeposit: [], deposits: [], cover: [] });
   const [tableDateRange, setTableDateRange] = useState<DateRange | undefined>(undefined);
@@ -955,13 +957,29 @@ export default function OverviewPage() {
   const yearOptions = Array.from({ length: 5 }, (_, i) => dayjs().year() - i);
 
   return (
-    <div className="h-screen p-4 sm:p-6" data-page="overview">
-      <Card className="h-full overflow-hidden">
+    <div 
+      className={cn(
+        "h-screen p-4 sm:p-6 transition-colors duration-200",
+        effectiveTheme === 'dark' 
+          ? "bg-slate-900 text-slate-100" 
+          : "bg-slate-50 text-slate-900"
+      )} 
+      data-page="overview"
+    >
+      <Card className={cn(
+        "h-full overflow-hidden border-0 shadow-lg transition-colors duration-200",
+        effectiveTheme === 'dark'
+          ? "bg-slate-800 shadow-slate-900/50"
+          : "bg-white shadow-slate-200/50"
+      )}>
         <div className="h-full overflow-y-auto p-6">
           <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
             <div className="flex items-center gap-4">
-              <h1 className="text-2xl font-bold tracking-tight">ภาพรวมรายทีม</h1>
+              <h1 className={cn(
+                "text-2xl font-bold tracking-tight transition-colors duration-200",
+                effectiveTheme === 'dark' ? "text-slate-100" : "text-slate-900"
+              )}>ภาพรวมรายทีม</h1>
               <RealTimeStatus lastUpdate={lastUpdate} />
             </div>
 
@@ -972,9 +990,9 @@ export default function OverviewPage() {
                 {!isClient ? (
                   <Skeleton className="h-9 w-[260px]" />
                 ) : (
-                  <DateRangePickerWithPresets
-                    initialDateRange={tableDateRange}
-                    onDateRangeChange={setTableDateRange}
+                  <DateRangePicker
+                    date={tableDateRange}
+                    onDateChange={setTableDateRange}
                   />
                 )}
               </div>

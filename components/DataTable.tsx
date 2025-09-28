@@ -52,6 +52,38 @@ interface DataRow {
   under_18?: number;
   over_50?: number;
   foreigner?: number;
+  // Daily deposit fields (วันที่ 1-31)
+  day1?: number;
+  day2?: number;
+  day3?: number;
+  day4?: number;
+  day5?: number;
+  day6?: number;
+  day7?: number;
+  day8?: number;
+  day9?: number;
+  day10?: number;
+  day11?: number;
+  day12?: number;
+  day13?: number;
+  day14?: number;
+  day15?: number;
+  day16?: number;
+  day17?: number;
+  day18?: number;
+  day19?: number;
+  day20?: number;
+  day21?: number;
+  day22?: number;
+  day23?: number;
+  day24?: number;
+  day25?: number;
+  day26?: number;
+  day27?: number;
+  day28?: number;
+  day29?: number;
+  day30?: number;
+  day31?: number;
   [key: string]: string | number | undefined;
 }
 
@@ -165,7 +197,15 @@ export default function DataTable() {
     blocked: true,
     under18: true,
     over50: true,
-    foreigner: true
+    foreigner: true,
+    // Daily deposit columns (day 1-31) - เปิด day1-day7 เพื่อทดสอบ
+    day1: true, day2: true, day3: true, day4: true, day5: true,
+    day6: true, day7: true, day8: false, day9: false, day10: false,
+    day11: false, day12: false, day13: false, day14: false, day15: false,
+    day16: false, day17: false, day18: false, day19: false, day20: false,
+    day21: false, day22: false, day23: false, day24: false, day25: false,
+    day26: false, day27: false, day28: false, day29: false, day30: false,
+    day31: false
   });
 
   // Get current month date range
@@ -271,23 +311,31 @@ export default function DataTable() {
   // Color configuration state - will be loaded from preferences  
   const [colorConfig, setColorConfig] = useState<ColorConfig>({});
 
-  // Load preferences on component mount - DISABLED to debug infinite loop
+  // TEMPORARILY DISABLE PREFERENCES LOADING - USE ONLY DEFAULTS
   useEffect(() => {
-    // Temporarily disable preferences loading to avoid TypeScript errors
-    // TODO: Fix type safety issues with preferences object
+    console.log('🚀 FORCING default values including daily columns...');
     
-    // Set defaults for now
-    setVisibleColumns(getDefaultVisibleColumns());
+    // Only clear specific localStorage items, not ALL to avoid auth issues
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('monitor-column-visibility');
+      localStorage.removeItem('bigquery-dashboard-filters');
+      console.log('🗑️ Cleared specific localStorage items');
+    }
+    
+    const defaultColumns = getDefaultVisibleColumns();
+    console.log('📊 Daily columns in defaults:', Object.keys(defaultColumns).filter(key => key.startsWith('day')));
+    console.log('📊 All default columns:', defaultColumns);
+    
+    // Force set defaults
+    setVisibleColumns(defaultColumns);
     setColorConfig(getDefaultColorConfig());
     setIsInitialized(true);
     
-    /* 
-    Commented out due to TypeScript null checking issues
-    if (false && !preferencesLoading && preferences) {
-      // Previous preference loading logic here...
-    }
-    */
-  }, []);
+    console.log('✅ FORCED visibleColumns state:', defaultColumns);
+    const dailyVisible = Object.entries(defaultColumns).filter(([key, value]) => key.startsWith('day') && value);
+    console.log('✅ Daily columns that should be visible:', dailyVisible);
+    console.log(`✅ Found ${dailyVisible.length} daily columns: ${dailyVisible.map(([k]) => k).join(', ')}`);
+  }, []); // Empty deps to run only once
 
   // Load saved filters after mount
   useEffect(() => {
@@ -642,7 +690,15 @@ export default function DataTable() {
     blocked: 75,
     under18: 75,
     over50: 75,
-    foreigner: 75
+    foreigner: 75,
+    // Daily deposit columns
+    day1: 50, day2: 50, day3: 50, day4: 50, day5: 50,
+    day6: 50, day7: 50, day8: 50, day9: 50, day10: 50,
+    day11: 50, day12: 50, day13: 50, day14: 50, day15: 50,
+    day16: 50, day17: 50, day18: 50, day19: 50, day20: 50,
+    day21: 50, day22: 50, day23: 50, day24: 50, day25: 50,
+    day26: 50, day27: 50, day28: 50, day29: 50, day30: 50,
+    day31: 50
   });
 
   // Column width state - เริ่มด้วย default ก่อน แล้วค่อย sync จาก preferences
@@ -707,6 +763,140 @@ export default function DataTable() {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState<number>(1);
+
+  // Daily deposits state
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1); // 1-12
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [dailyDepositsData, setDailyDepositsData] = useState<Record<string, Record<string, number>>>({});
+  const [isLoadingDailyDeposits, setIsLoadingDailyDeposits] = useState<boolean>(false);
+  const [isDailyDepositsSidebarOpen, setIsDailyDepositsSidebarOpen] = useState<boolean>(false);
+
+  // Get days in selected month
+  const getDaysInMonth = (year: number, month: number) => {
+    return new Date(year, month, 0).getDate();
+  };
+
+  const daysInSelectedMonth = getDaysInMonth(selectedYear, selectedMonth);
+  const monthNames = [
+    'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+    'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+  ];
+
+  // Fetch daily deposits data
+  const fetchDailyDeposits = useCallback(async (month: number, year: number) => {
+    setIsLoadingDailyDeposits(true);
+    try {
+      console.log(`Fetching daily deposits for ${year}-${month}`);
+      const response = await fetch(`/api/daily-deposits?month=${month}&year=${year}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        setDailyDepositsData(result.data);
+        console.log(`Successfully loaded daily deposits data for ${result.summary.totalAdIds} ad IDs`);
+      } else {
+        console.error('Failed to fetch daily deposits:', result.error);
+        setDailyDepositsData({});
+      }
+    } catch (error) {
+      console.error('Error fetching daily deposits:', error);
+      setDailyDepositsData({});
+    } finally {
+      setIsLoadingDailyDeposits(false);
+    }
+  }, []);
+
+  // Effect to fetch daily deposits when month/year changes
+  useEffect(() => {
+    fetchDailyDeposits(selectedMonth, selectedYear);
+  }, [selectedMonth, selectedYear, fetchDailyDeposits]);
+
+  // Helper functions for daily deposits table styling
+  const getCurrentDay = () => new Date().getDate();
+  const getCurrentMonth = () => new Date().getMonth() + 1;
+  const getCurrentYear = () => new Date().getFullYear();
+
+  const getDayStatus = (dayNumber: number, startDate: string | null, endDate: string | null) => {
+    const today = new Date();
+    const currentDay = today.getDate();
+    const currentMonth = today.getMonth() + 1;
+    const currentYear = today.getFullYear();
+
+    // Check if we're looking at current month/year
+    if (selectedMonth !== currentMonth || selectedYear !== currentYear) {
+      return 'inactive'; // Past or future month
+    }
+
+    // Check if day is within start-end range
+    if (startDate) {
+      const start = new Date(startDate);
+      const startDay = start.getDate();
+      const startMonth = start.getMonth() + 1;
+      const startYear = start.getFullYear();
+
+      // Only highlight if start date is in the same month/year we're viewing
+      if (startMonth === selectedMonth && startYear === selectedYear) {
+        if (dayNumber < startDay) {
+          return 'before-start'; // Before start date
+        }
+      }
+    }
+
+    if (dayNumber === currentDay) {
+      return 'current'; // Today
+    } else if (dayNumber < currentDay) {
+      return 'past'; // Past days (after start date)
+    } else {
+      return 'future'; // Future days
+    }
+  };
+
+  const getDayCellStyle = (status: string) => {
+    switch (status) {
+      case 'current':
+        return 'bg-blue-200 dark:bg-blue-900/50'; // Current day - dark blue background
+      case 'past':
+        return 'bg-purple-50 dark:bg-purple-900/20'; // Past days (active period) - light purple
+      case 'before-start':
+        return ''; // Before start date - normal
+      case 'future':
+        return ''; // Future days - normal
+      default:
+        return '';
+    }
+  };
+
+  const getDayHeaderStyle = (status: string) => {
+    switch (status) {
+      case 'current':
+        return 'bg-blue-200 dark:bg-blue-900/50'; // Current day header - same as data cells
+      case 'past':
+        return 'bg-slate-100 dark:bg-slate-800'; // Past days - normal header
+      case 'before-start':
+        return 'bg-slate-100 dark:bg-slate-800'; // Before start date - normal header
+      case 'future':
+        return 'bg-slate-100 dark:bg-slate-800'; // Future days - normal header
+      default:
+        return 'bg-slate-100 dark:bg-slate-800';
+    }
+  };
+
+  const getDayValueStyle = (status: string, value: number) => {
+    if (value <= 0) return 'text-xs text-gray-500 dark:text-gray-400 font-normal';
+    
+    switch (status) {
+      case 'current':
+        return 'text-sm font-semibold text-blue-700 dark:text-blue-200'; // Current day - bold blue text
+      case 'past':
+        return 'text-sm font-normal text-slate-700 dark:text-slate-200'; // Past days - normal weight text
+      default:
+        return 'text-sm font-normal text-slate-700 dark:text-slate-200'; // Default - normal weight text
+    }
+  };
   const [itemsPerPage, setItemsPerPage] = useState<number>(100);
 
   // Available options for filters
@@ -756,7 +946,15 @@ export default function DataTable() {
       'foreigner': 'ชาวต่างชาติ',
       'cpm': 'CPM',
       'cost_per_message': 'ค่าใช้จ่ายต่อข้อความ',
-      'cost_per_deposit': 'ค่าใช้จ่ายต่อฝากเงิน'
+      'cost_per_deposit': 'ค่าใช้จ่ายต่อฝากเงิน',
+      // Daily deposit columns
+      'day1': 'วันที่ 1', 'day2': 'วันที่ 2', 'day3': 'วันที่ 3', 'day4': 'วันที่ 4', 'day5': 'วันที่ 5',
+      'day6': 'วันที่ 6', 'day7': 'วันที่ 7', 'day8': 'วันที่ 8', 'day9': 'วันที่ 9', 'day10': 'วันที่ 10',
+      'day11': 'วันที่ 11', 'day12': 'วันที่ 12', 'day13': 'วันที่ 13', 'day14': 'วันที่ 14', 'day15': 'วันที่ 15',
+      'day16': 'วันที่ 16', 'day17': 'วันที่ 17', 'day18': 'วันที่ 18', 'day19': 'วันที่ 19', 'day20': 'วันที่ 20',
+      'day21': 'วันที่ 21', 'day22': 'วันที่ 22', 'day23': 'วันที่ 23', 'day24': 'วันที่ 24', 'day25': 'วันที่ 25',
+      'day26': 'วันที่ 26', 'day27': 'วันที่ 27', 'day28': 'วันที่ 28', 'day29': 'วันที่ 29', 'day30': 'วันที่ 30',
+      'day31': 'วันที่ 31'
     };
     return columnNames[key] || key;
   };
@@ -1777,9 +1975,9 @@ export default function DataTable() {
       </div>
 
       {/* Main Content - Third column */}
-      <div className="flex-1 bg-white/20 dark:bg-slate-600/20 backdrop-blur-sm overflow-hidden flex flex-col max-h-screen">
+      <div className="flex-1 bg-white/20 dark:bg-slate-600/20 backdrop-blur-sm overflow-hidden flex flex-col h-full">
         {/* Filter Toggle Button - Balanced design */}
-        <div className="flex items-center justify-between p-3 bg-white/30 dark:bg-slate-800/30 border-b border-slate-200/25 dark:border-slate-700/25">
+        <div className="flex items-center justify-between p-3 bg-white/30 dark:bg-slate-800/30 border-b border-slate-200/25 dark:border-slate-700/25 flex-shrink-0">
           <button
             onClick={() => setIsFilterVisible(!isFilterVisible)}
             className="flex items-center gap-2 px-2.5 py-1.5 text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100 hover:bg-slate-100/60 dark:hover:bg-slate-700/40 rounded-md transition-colors duration-150 text-sm border border-slate-200/40 dark:border-slate-600/30 hover:border-slate-300/60 dark:hover:border-slate-500/50"
@@ -1798,8 +1996,27 @@ export default function DataTable() {
               </>
             )}
           </button>
-          <div className="text-sm text-slate-600 dark:text-slate-400">
-            Monitor Dashboard
+          <div className="flex items-center gap-4">
+            <div className="text-sm text-slate-600 dark:text-slate-400">
+              Monitor Dashboard
+            </div>
+            <button
+              onClick={() => setIsDailyDepositsSidebarOpen(!isDailyDepositsSidebarOpen)}
+              className="flex items-center gap-2 px-2.5 py-1.5 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200 hover:bg-blue-50/60 dark:hover:bg-blue-900/40 rounded-md transition-colors duration-150 text-sm border border-blue-200/40 dark:border-blue-600/30 hover:border-blue-300/60 dark:hover:border-blue-500/50"
+              title={isDailyDepositsSidebarOpen ? 'ซ่อนเติมรายวัน' : 'แสดงเติมรายวัน'}
+            >
+              {isDailyDepositsSidebarOpen ? (
+                <>
+                  <span className="font-medium">ซ่อนเติมรายวัน</span>
+                  <ChevronRight className="h-4 w-4" />
+                </>
+              ) : (
+                <>
+                  <span className="font-medium">เติมรายวัน</span>
+                  <ChevronLeft className="h-4 w-4" />
+                </>
+              )}
+            </button>
           </div>
         </div>
 
@@ -1813,21 +2030,33 @@ export default function DataTable() {
           </div>
         )}
 
-        {/* Data table */}
+        {/* Main Container - Single table with daily deposits extension */}
         {!loading && (
-          <div className="flex-1 overflow-auto border border-slate-200/30 rounded-lg shadow-sm max-w-full relative bg-white/95 backdrop-blur-sm min-h-0">
-            <div style={{ minWidth: 'max-content' }}>
-              <Table 
-                key={`table-${Object.values(visibleColumns).join('')}`}
-                className="w-full relative bg-white backdrop-blur-sm" 
-                style={{ tableLayout: 'auto' }}
-              >
-                <TableCaption>
-                  {isAggregatedMode 
-                    ? `ข้อมูลรวมตาม Ad ID - หน้า ${currentPage} จาก ${totalPages} (${totalItems.toLocaleString()} Ad ID ทั้งหมด)`
-                    : `ข้อมูลแคมเปญการตลาด - หน้า ${currentPage} จาก ${totalPages} (${totalItems.toLocaleString()} รายการทั้งหมด)`
-                  }
-                </TableCaption>
+          <div className="flex-1 bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col m-3 min-h-0 max-h-[calc(100vh-140px)]">
+            
+            <div className="p-3 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+              <h3 className="text-lg font-medium text-slate-800 dark:text-slate-200">ตารางข้อมูลและเติมรายวัน</h3>
+            </div>
+            
+            <div className="flex-1 overflow-x-auto overflow-y-auto min-h-0 max-h-[calc(100vh-160px)]" style={{ 
+              scrollbarWidth: 'thin', 
+              scrollbarColor: '#64748b #e2e8f0',
+              msOverflowStyle: 'auto'
+            }}>
+              <div className="min-w-max flex w-full h-full">
+                {/* Main Table */}
+                <div className="flex-shrink-0 w-full min-h-0 data-table">
+                  <Table 
+                    key={`table-${Object.values(visibleColumns).join('')}`}
+                    className="relative bg-white dark:bg-slate-800" 
+                    style={{ tableLayout: 'auto' }}
+                  >
+                    <TableCaption>
+                      {isAggregatedMode 
+                        ? `ข้อมูลรวมตาม Ad ID - หน้า ${currentPage} จาก ${totalPages} (${totalItems.toLocaleString()} Ad ID ทั้งหมด)`
+                        : `ข้อมูลแคมเปญการตลาด - หน้า ${currentPage} จาก ${totalPages} (${totalItems.toLocaleString()} รายการทั้งหมด)`
+                      }
+                    </TableCaption>
               <TableHeader>
                 <TableRow>
                   {visibleColumns.no && (
@@ -1972,30 +2201,6 @@ export default function DataTable() {
                       onSort={handleSort}
                     >
                       สถานะ
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.start && (
-                    <ResizableHeader 
-                      sortKey="start" 
-                      className="text-center"
-                      width={columnWidths["start"] || 120}
-                      onWidthChange={(width) => handleColumnWidthChange("start", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      วันที่เปิด
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.off && (
-                    <ResizableHeader 
-                      sortKey="off" 
-                      className="text-center"
-                      width={columnWidths["off"] || 120}
-                      onWidthChange={(width) => handleColumnWidthChange("off", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      วันที่ปิด
                     </ResizableHeader>
                   )}
                   {visibleColumns.captions && (
@@ -2299,11 +2504,385 @@ export default function DataTable() {
                       ต่างชาติ
                     </ResizableHeader>
                   )}
+                  
+                  {/* Daily Deposit Columns (Day 1-31) - ข้างขวาคอลัมน์ต่างชาติ */}
+                  {visibleColumns.day1 && (
+                    <ResizableHeader 
+                      sortKey="day1" 
+                      className="text-center text-xs"
+                      width={columnWidths["day1"] || 45}
+                      onWidthChange={(width) => handleColumnWidthChange("day1", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      1
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day2 && (
+                    <ResizableHeader 
+                      sortKey="day2" 
+                      className="text-center text-xs"
+                      width={columnWidths["day2"] || 45}
+                      onWidthChange={(width) => handleColumnWidthChange("day2", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      2
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day3 && (
+                    <ResizableHeader 
+                      sortKey="day3" 
+                      className="text-center text-xs"
+                      width={columnWidths["day3"] || 45}
+                      onWidthChange={(width) => handleColumnWidthChange("day3", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      3
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day4 && (
+                    <ResizableHeader 
+                      sortKey="day4" 
+                      className="text-center text-xs"
+                      width={columnWidths["day4"] || 45}
+                      onWidthChange={(width) => handleColumnWidthChange("day4", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      4
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day5 && (
+                    <ResizableHeader 
+                      sortKey="day5" 
+                      className="text-center text-xs"
+                      width={columnWidths["day5"] || 45}
+                      onWidthChange={(width) => handleColumnWidthChange("day5", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      5
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day6 && (
+                    <ResizableHeader 
+                      sortKey="day6" 
+                      className="text-center text-xs"
+                      width={columnWidths["day6"] || 45}
+                      onWidthChange={(width) => handleColumnWidthChange("day6", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      6
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day7 && (
+                    <ResizableHeader 
+                      sortKey="day7" 
+                      className="text-center text-xs"
+                      width={columnWidths["day7"] || 45}
+                      onWidthChange={(width) => handleColumnWidthChange("day7", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      7
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day8 && (
+                    <ResizableHeader 
+                      sortKey="day8" 
+                      className="text-center"
+                      width={columnWidths["day8"] || 50}
+                      onWidthChange={(width) => handleColumnWidthChange("day8", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      8
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day9 && (
+                    <ResizableHeader 
+                      sortKey="day9" 
+                      className="text-center"
+                      width={columnWidths["day9"] || 50}
+                      onWidthChange={(width) => handleColumnWidthChange("day9", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      9
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day10 && (
+                    <ResizableHeader 
+                      sortKey="day10" 
+                      className="text-center"
+                      width={columnWidths["day10"] || 50}
+                      onWidthChange={(width) => handleColumnWidthChange("day10", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      10
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day11 && (
+                    <ResizableHeader 
+                      sortKey="day11" 
+                      className="text-center"
+                      width={columnWidths["day11"] || 50}
+                      onWidthChange={(width) => handleColumnWidthChange("day11", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      11
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day12 && (
+                    <ResizableHeader 
+                      sortKey="day12" 
+                      className="text-center"
+                      width={columnWidths["day12"] || 50}
+                      onWidthChange={(width) => handleColumnWidthChange("day12", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      12
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day13 && (
+                    <ResizableHeader 
+                      sortKey="day13" 
+                      className="text-center"
+                      width={columnWidths["day13"] || 50}
+                      onWidthChange={(width) => handleColumnWidthChange("day13", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      13
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day14 && (
+                    <ResizableHeader 
+                      sortKey="day14" 
+                      className="text-center"
+                      width={columnWidths["day14"] || 50}
+                      onWidthChange={(width) => handleColumnWidthChange("day14", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      14
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day15 && (
+                    <ResizableHeader 
+                      sortKey="day15" 
+                      className="text-center"
+                      width={columnWidths["day15"] || 50}
+                      onWidthChange={(width) => handleColumnWidthChange("day15", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      15
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day16 && (
+                    <ResizableHeader 
+                      sortKey="day16" 
+                      className="text-center"
+                      width={columnWidths["day16"] || 50}
+                      onWidthChange={(width) => handleColumnWidthChange("day16", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      16
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day17 && (
+                    <ResizableHeader 
+                      sortKey="day17" 
+                      className="text-center"
+                      width={columnWidths["day17"] || 50}
+                      onWidthChange={(width) => handleColumnWidthChange("day17", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      17
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day18 && (
+                    <ResizableHeader 
+                      sortKey="day18" 
+                      className="text-center"
+                      width={columnWidths["day18"] || 50}
+                      onWidthChange={(width) => handleColumnWidthChange("day18", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      18
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day19 && (
+                    <ResizableHeader 
+                      sortKey="day19" 
+                      className="text-center"
+                      width={columnWidths["day19"] || 50}
+                      onWidthChange={(width) => handleColumnWidthChange("day19", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      19
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day20 && (
+                    <ResizableHeader 
+                      sortKey="day20" 
+                      className="text-center"
+                      width={columnWidths["day20"] || 50}
+                      onWidthChange={(width) => handleColumnWidthChange("day20", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      20
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day21 && (
+                    <ResizableHeader 
+                      sortKey="day21" 
+                      className="text-center"
+                      width={columnWidths["day21"] || 50}
+                      onWidthChange={(width) => handleColumnWidthChange("day21", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      21
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day22 && (
+                    <ResizableHeader 
+                      sortKey="day22" 
+                      className="text-center"
+                      width={columnWidths["day22"] || 50}
+                      onWidthChange={(width) => handleColumnWidthChange("day22", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      22
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day23 && (
+                    <ResizableHeader 
+                      sortKey="day23" 
+                      className="text-center"
+                      width={columnWidths["day23"] || 50}
+                      onWidthChange={(width) => handleColumnWidthChange("day23", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      23
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day24 && (
+                    <ResizableHeader 
+                      sortKey="day24" 
+                      className="text-center"
+                      width={columnWidths["day24"] || 50}
+                      onWidthChange={(width) => handleColumnWidthChange("day24", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      24
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day25 && (
+                    <ResizableHeader 
+                      sortKey="day25" 
+                      className="text-center"
+                      width={columnWidths["day25"] || 50}
+                      onWidthChange={(width) => handleColumnWidthChange("day25", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      25
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day26 && (
+                    <ResizableHeader 
+                      sortKey="day26" 
+                      className="text-center"
+                      width={columnWidths["day26"] || 50}
+                      onWidthChange={(width) => handleColumnWidthChange("day26", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      26
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day27 && (
+                    <ResizableHeader 
+                      sortKey="day27" 
+                      className="text-center"
+                      width={columnWidths["day27"] || 50}
+                      onWidthChange={(width) => handleColumnWidthChange("day27", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      27
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day28 && (
+                    <ResizableHeader 
+                      sortKey="day28" 
+                      className="text-center"
+                      width={columnWidths["day28"] || 50}
+                      onWidthChange={(width) => handleColumnWidthChange("day28", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      28
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day29 && (
+                    <ResizableHeader 
+                      sortKey="day29" 
+                      className="text-center"
+                      width={columnWidths["day29"] || 50}
+                      onWidthChange={(width) => handleColumnWidthChange("day29", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      29
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day30 && (
+                    <ResizableHeader 
+                      sortKey="day30" 
+                      className="text-center"
+                      width={columnWidths["day30"] || 50}
+                      onWidthChange={(width) => handleColumnWidthChange("day30", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      30
+                    </ResizableHeader>
+                  )}
+                  {visibleColumns.day31 && (
+                    <ResizableHeader 
+                      sortKey="day31" 
+                      className="text-center"
+                      width={columnWidths["day31"] || 50}
+                      onWidthChange={(width) => handleColumnWidthChange("day31", width)}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    >
+                      31
+                    </ResizableHeader>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {sortedData.map((row, index) => (
-                  <TableRow key={index} className={`${index % 2 === 0 ? "bg-white hover:bg-blue-50" : "bg-blue-50/50 hover:bg-blue-100/70"} h-8`}>
+                  <TableRow key={index} className={`${index % 2 === 0 ? "bg-white hover:bg-blue-50" : "bg-blue-50/50 hover:bg-blue-100/70"}`} style={{ height: '20px' }}>
                     {visibleColumns.no && (
                       <ExpandableCell
                         content={(startIndex + index + 1).toString()}
@@ -2397,22 +2976,6 @@ export default function DataTable() {
                       <td className="w-[100px] text-center border-r border-slate-200 text-[14px] px-1 py-0.5">
                         {formatStatusWithColor(row.status || '')}
                       </td>
-                    )}
-                    {visibleColumns.start && (
-                      <ExpandableCell
-                        content={formatStringField(row.start)}
-                        rowIndex={index}
-                        column="Start"
-                        className="w-[120px] text-center border-r border-slate-200 text-[14px] px-1 py-0.5"
-                      />
-                    )}
-                    {visibleColumns.off && (
-                      <ExpandableCell
-                        content={formatStringField(row.off)}
-                        rowIndex={index}
-                        column="Off"
-                        className="w-[120px] text-center border-r border-slate-200 text-[14px] px-1 py-0.5"
-                      />
                     )}
                     {visibleColumns.captions && (
                       <ExpandableCell
@@ -2668,7 +3231,7 @@ export default function DataTable() {
                     )}
                     {visibleColumns.foreigner && (
                       <td 
-                        className="text-center truncate border-slate-200 p-1"
+                        className="text-center truncate border-r border-slate-200 p-1"
                         style={{
                           width: `${columnWidths["foreigner"] || 65}px`,
                           ...getColumnColor('foreigner', row.foreigner || 0, row.total_message || 0)
@@ -2677,11 +3240,307 @@ export default function DataTable() {
                         {formatPercentageField(row.foreigner, row.total_message)}
                       </td>
                     )}
+
+                    {/* Daily Deposit Columns */}
+                    {visibleColumns.day1 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day1"] || 45}px` }}
+                      >
+                        {row.day1 ? (
+                          <span className="px-1 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded text-xs">
+                            {row.day1.toLocaleString()}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 dark:text-slate-500 text-xs">-</span>
+                        )}
+                      </td>
+                    )}
+                    {visibleColumns.day2 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day2"] || 45}px` }}
+                      >
+                        {row.day2 ? (
+                          <span className="px-1 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded text-xs">
+                            {row.day2.toLocaleString()}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 dark:text-slate-500 text-xs">-</span>
+                        )}
+                      </td>
+                    )}
+                    {visibleColumns.day3 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day3"] || 45}px` }}
+                      >
+                        {row.day3 ? (
+                          <span className="px-1 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded text-xs">
+                            {row.day3.toLocaleString()}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 dark:text-slate-500 text-xs">-</span>
+                        )}
+                      </td>
+                    )}
+                    {visibleColumns.day4 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day4"] || 45}px` }}
+                      >
+                        {row.day4 ? (
+                          <span className="px-1 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded text-xs">
+                            {row.day4.toLocaleString()}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 dark:text-slate-500 text-xs">-</span>
+                        )}
+                      </td>
+                    )}
+                    {visibleColumns.day5 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day5"] || 45}px` }}
+                      >
+                        {row.day5 ? (
+                          <span className="px-1 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded text-xs">
+                            {row.day5.toLocaleString()}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 dark:text-slate-500 text-xs">-</span>
+                        )}
+                      </td>
+                    )}
+                    {visibleColumns.day6 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day6"] || 45}px` }}
+                      >
+                        {row.day6 ? (
+                          <span className="px-1 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded text-xs">
+                            {row.day6.toLocaleString()}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 dark:text-slate-500 text-xs">-</span>
+                        )}
+                      </td>
+                    )}
+                    {visibleColumns.day7 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day7"] || 45}px` }}
+                      >
+                        {row.day7 ? (
+                          <span className="px-1 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded text-xs">
+                            {row.day7.toLocaleString()}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 dark:text-slate-500 text-xs">-</span>
+                        )}
+                      </td>
+                    )}
+                    {visibleColumns.day8 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day8"] || 50}px` }}
+                      >
+                        {row.day8 ? row.day8.toLocaleString() : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.day9 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day9"] || 50}px` }}
+                      >
+                        {row.day9 ? row.day9.toLocaleString() : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.day10 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day10"] || 50}px` }}
+                      >
+                        {row.day10 ? row.day10.toLocaleString() : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.day11 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day11"] || 50}px` }}
+                      >
+                        {row.day11 ? row.day11.toLocaleString() : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.day12 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day12"] || 50}px` }}
+                      >
+                        {row.day12 ? row.day12.toLocaleString() : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.day13 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day13"] || 50}px` }}
+                      >
+                        {row.day13 ? row.day13.toLocaleString() : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.day14 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day14"] || 50}px` }}
+                      >
+                        {row.day14 ? row.day14.toLocaleString() : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.day15 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day15"] || 50}px` }}
+                      >
+                        {row.day15 ? row.day15.toLocaleString() : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.day16 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day16"] || 50}px` }}
+                      >
+                        {row.day16 ? row.day16.toLocaleString() : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.day17 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day17"] || 50}px` }}
+                      >
+                        {row.day17 ? row.day17.toLocaleString() : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.day18 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day18"] || 50}px` }}
+                      >
+                        {row.day18 ? row.day18.toLocaleString() : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.day19 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day19"] || 50}px` }}
+                      >
+                        {row.day19 ? row.day19.toLocaleString() : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.day20 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day20"] || 50}px` }}
+                      >
+                        {row.day20 ? row.day20.toLocaleString() : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.day21 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day21"] || 50}px` }}
+                      >
+                        {row.day21 ? row.day21.toLocaleString() : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.day22 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day22"] || 50}px` }}
+                      >
+                        {row.day22 ? row.day22.toLocaleString() : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.day23 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day23"] || 50}px` }}
+                      >
+                        {row.day23 ? row.day23.toLocaleString() : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.day24 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day24"] || 50}px` }}
+                      >
+                        {row.day24 ? row.day24.toLocaleString() : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.day25 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day25"] || 50}px` }}
+                      >
+                        {row.day25 ? row.day25.toLocaleString() : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.day26 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day26"] || 50}px` }}
+                      >
+                        {row.day26 ? row.day26.toLocaleString() : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.day27 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day27"] || 50}px` }}
+                      >
+                        {row.day27 ? row.day27.toLocaleString() : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.day28 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day28"] || 50}px` }}
+                      >
+                        {row.day28 ? row.day28.toLocaleString() : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.day29 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day29"] || 50}px` }}
+                      >
+                        {row.day29 ? row.day29.toLocaleString() : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.day30 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day30"] || 50}px` }}
+                      >
+                        {row.day30 ? row.day30.toLocaleString() : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.day31 && (
+                      <td 
+                        className="text-center truncate border-r border-slate-200 p-1"
+                        style={{ width: `${columnWidths["day31"] || 50}px` }}
+                      >
+                        {row.day31 ? row.day31.toLocaleString() : '-'}
+                      </td>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+                </div>
+
+              </div>
             </div>
+
           </div>
         )}
 
@@ -2740,6 +3599,201 @@ export default function DataTable() {
             </button>
           </div>
         )}
+          </div>
+        </div>
+      </div>
+
+      {/* Daily Deposits Sidebar - Right side collapsible */}
+      <div className={`h-full flex-shrink-0 bg-blue-50/40 dark:bg-blue-900/20 border-l border-blue-200/30 dark:border-blue-700/30 overflow-hidden backdrop-blur-sm transition-[width] duration-200 ease-out will-change-[width] ${
+        isDailyDepositsSidebarOpen ? 'w-[884px]' : 'w-0'
+      }`}>
+        <div className={`w-[884px] h-full transform transition-transform duration-200 ease-out will-change-transform ${
+          isDailyDepositsSidebarOpen ? 'translate-x-0' : 'translate-x-full'
+        }`}>
+          <div className="h-full flex flex-col">
+            {/* Month/Year Selectors */}
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/10 border-b border-blue-200/50 dark:border-blue-700/50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <h4 className="text-lg font-semibold text-blue-800 dark:text-blue-300">เติมรายวัน</h4>
+                  {isLoadingDailyDeposits && (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-32">
+                    <label className="block text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">เดือน</label>
+                    <select 
+                      value={selectedMonth} 
+                      onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                      className="w-full px-3 py-1.5 text-sm bg-white dark:bg-slate-700 border border-blue-200 dark:border-blue-600 rounded-md text-blue-800 dark:text-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      disabled={isLoadingDailyDeposits}
+                    >
+                      {monthNames.map((month, index) => (
+                        <option key={index + 1} value={index + 1}>{month}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="w-24">
+                    <label className="block text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">ปี</label>
+                    <select 
+                      value={selectedYear} 
+                      onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                      className="w-full px-3 py-1.5 text-sm bg-white dark:bg-slate-700 border border-blue-200 dark:border-blue-600 rounded-md text-blue-800 dark:text-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      disabled={isLoadingDailyDeposits}
+                    >
+                      {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(year => (
+                        <option key={year} value={year}>{year}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <button
+                    onClick={() => setIsDailyDepositsSidebarOpen(false)}
+                    className="p-1.5 hover:bg-blue-200/60 dark:hover:bg-blue-800/40 rounded-md transition-colors ml-3"
+                    title="ปิดเติมรายวัน"
+                  >
+                    <ChevronRight className="h-4 w-4 text-blue-700 dark:text-blue-300" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Daily Deposits Table */}
+            <div className="flex-1 overflow-x-auto overflow-y-auto max-h-[calc(100vh-160px)]" style={{ 
+              scrollbarWidth: 'thin', 
+              scrollbarColor: '#64748b #e2e8f0',
+              msOverflowStyle: 'auto'
+            }}>
+              <div className="bg-white dark:bg-slate-800 min-w-full daily-deposits-table">
+                <table className="w-full">
+                  <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 z-30 shadow-md">
+                    <tr className="bg-slate-100 dark:bg-slate-800 border-l-2 border-r-2 border-slate-200 dark:border-slate-600">
+                      <th className="px-3 py-2 text-left font-medium text-slate-700 dark:text-slate-300 border-r-2 border-slate-200 dark:border-slate-600 sticky left-0 bg-slate-100 dark:bg-slate-800 z-40" style={{ minWidth: '80px' }}>
+                        <span className="text-xs font-medium">Ad ID</span>
+                      </th>
+                      <th className="px-2 py-2 text-center font-medium text-slate-700 dark:text-slate-300 border-r-2 border-slate-200 dark:border-slate-600 bg-slate-100 dark:bg-slate-800" style={{ minWidth: '80px' }}>
+                        <span className="text-xs font-medium">เปิด</span>
+                      </th>
+                      <th className="px-2 py-2 text-center font-medium text-slate-700 dark:text-slate-300 border-r-2 border-slate-200 dark:border-slate-600 bg-slate-100 dark:bg-slate-800" style={{ minWidth: '80px' }}>
+                        <span className="text-xs font-medium">ปิด</span>
+                      </th>
+                      {Array.from({ length: daysInSelectedMonth }, (_, i) => {
+                        const dayNumber = i + 1;
+                        const dayStatus = getDayStatus(dayNumber, null, null);
+                        const headerStyle = getDayHeaderStyle(dayStatus);
+                        
+                        return (
+                          <th key={i + 1} className={`px-1 py-2 text-center font-medium text-slate-700 dark:text-slate-300 border-r border-slate-200 dark:border-slate-600 ${headerStyle}`} style={{ minWidth: '28px' }}>
+                            <span className="text-xs font-medium">{i + 1}</span>
+                          </th>
+                        );
+                      })}
+                    </tr>
+                    {/* Summary Row */}
+                    <tr className="border-b-4 border-slate-300 dark:border-slate-600 border-l-2 border-r-2 border-slate-200 dark:border-slate-600 sticky bg-white dark:bg-slate-800 z-20 shadow-lg" style={{ top: '40px', height: '28px' }}>
+                      <td className="px-3 py-0.5 text-left font-medium text-slate-800 dark:text-slate-300 border-r-2 border-slate-200 dark:border-slate-600 sticky left-0 bg-white dark:bg-slate-800 z-40 shadow-lg" style={{ lineHeight: '28px' }}>
+                        <span className="text-xs font-bold">รวม</span>
+                      </td>
+                      <td className="px-2 py-0.5 text-center font-medium text-slate-800 dark:text-slate-300 border-r-2 border-slate-200 dark:border-slate-600" style={{ lineHeight: '28px' }}>
+                        <span className="text-xs font-medium">-</span>
+                      </td>
+                      <td className="px-2 py-0.5 text-center font-medium text-slate-800 dark:text-slate-300 border-r-2 border-slate-200 dark:border-slate-600" style={{ lineHeight: '28px' }}>
+                        <span className="text-xs font-medium">-</span>
+                      </td>
+                      {Array.from({ length: daysInSelectedMonth }, (_, i) => {
+                        const dayNumber = i + 1;
+                        const dayKey = `day${dayNumber}`;
+                        const dayStatus = getDayStatus(dayNumber, null, null); // For summary, we don't filter by specific ad dates
+                        const cellStyle = getDayCellStyle(dayStatus);
+                        
+                        // คำนวณจากข้อมูลที่แสดงอยู่ในตารางเท่านั้น (sortedData)
+                        const dailyTotal = sortedData.reduce((sum, row) => {
+                          const adid = row.adid?.toString() || '';
+                          const dailyData = dailyDepositsData[adid] || {};
+                          return sum + (dailyData[dayKey] || 0);
+                        }, 0);
+                        
+                        return (
+                          <td key={i + 1} className={`px-1 py-0.5 text-center border-r border-slate-200 dark:border-slate-600 ${cellStyle}`} style={{ lineHeight: '28px' }}>
+                            {dailyTotal > 0 ? (
+                              <span className={getDayValueStyle(dayStatus, dailyTotal)}>
+                                {dailyTotal.toLocaleString()}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-500 dark:text-gray-400 font-normal">0</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white dark:bg-slate-800">
+                    {isLoadingDailyDeposits ? (
+                      <tr>
+                        <td colSpan={daysInSelectedMonth + 3} className="px-4 py-8 text-center text-slate-500">
+                          <div className="flex items-center justify-center space-x-2">
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                            <span>กำลังโหลดข้อมูลเติมเงินรายวัน...</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      sortedData.map((row, index) => {
+                        const adid = row.adid?.toString() || '';
+                        const dailyData = dailyDepositsData[adid] || {};
+                        
+                        return (
+                          <tr key={index} className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50" style={{ height: '28px' }}>
+                            <td className="px-3 py-0.5 text-left border-r border-slate-200 dark:border-slate-600 sticky left-0 bg-white dark:bg-slate-800 z-10" style={{ lineHeight: '28px' }}>
+                              <span className="text-sm text-slate-700 dark:text-slate-300 truncate block">
+                                {formatStringField(row.adid)}
+                              </span>
+                            </td>
+                            <td className="px-2 py-0.5 text-center border-r border-slate-200 dark:border-slate-600" style={{ lineHeight: '28px' }}>
+                              <span className="text-xs text-slate-600 dark:text-slate-400">
+                                {row.start ? new Date(row.start).toLocaleDateString('th-TH', { 
+                                  day: '2-digit', 
+                                  month: '2-digit', 
+                                  year: '2-digit' 
+                                }) : '-'}
+                              </span>
+                            </td>
+                            <td className="px-2 py-0.5 text-center border-r border-slate-200 dark:border-slate-600" style={{ lineHeight: '28px' }}>
+                              <span className="text-xs text-slate-600 dark:text-slate-400">
+                                {row.off ? new Date(row.off).toLocaleDateString('th-TH', { 
+                                  day: '2-digit', 
+                                  month: '2-digit', 
+                                  year: '2-digit' 
+                                }) : '-'}
+                              </span>
+                            </td>
+                            {Array.from({ length: daysInSelectedMonth }, (_, i) => {
+                              const dayNumber = i + 1;
+                              const dayKey = `day${dayNumber}`;
+                              const value = dailyData[dayKey] || 0;
+                              const dayStatus = getDayStatus(dayNumber, row.start, row.off);
+                              const cellStyle = getDayCellStyle(dayStatus);
+                              
+                              return (
+                                <td key={i + 1} className={`px-1 py-0.5 text-center border-r border-slate-200 dark:border-slate-600 ${cellStyle}`} style={{ lineHeight: '28px' }}>
+                                  {value > 0 ? (
+                                    <span className={getDayValueStyle(dayStatus, value)}>
+                                      {value.toLocaleString()}
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">-</span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
       </div>

@@ -10,12 +10,19 @@ interface ThemeColors {
   background: string
 }
 
+interface FontSettings {
+  family: string
+  size: number
+}
+
 interface ThemeContextType {
   mode: ThemeMode
   colors: ThemeColors
+  fonts: FontSettings
   effectiveTheme: 'light' | 'dark'
   setMode: (mode: ThemeMode) => void
   setColors: (colors: Partial<ThemeColors>) => void
+  setFonts: (fonts: Partial<FontSettings>) => void
   resetToDefaults: () => void
 }
 
@@ -24,11 +31,17 @@ const defaultColors: ThemeColors = {
   background: '#ffffff'
 }
 
+const defaultFonts: FontSettings = {
+  family: 'Inter, system-ui, -apple-system, sans-serif',
+  size: 14
+}
+
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<ThemeMode>('system')
   const [colors, setColors] = useState<ThemeColors>(defaultColors)
+  const [fonts, setFonts] = useState<FontSettings>(defaultFonts)
   const [effectiveTheme, setEffectiveTheme] = useState<'light' | 'dark'>('light')
   const [isLoaded, setIsLoaded] = useState(false)
   const { preferences, updateThemeSettings } = useUserPreferences()
@@ -48,6 +61,18 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           background: themeSettings.backgroundColor
         });
       }
+
+      // Load fonts if available
+      if (themeSettings.fontFamily || themeSettings.fontSize) {
+        console.log('Loading fonts from database:', {
+          family: themeSettings.fontFamily,
+          size: themeSettings.fontSize
+        });
+        setFonts({
+          family: themeSettings.fontFamily || defaultFonts.family,
+          size: themeSettings.fontSize || defaultFonts.size
+        });
+      }
       
       if (themeSettings.isDarkMode !== undefined) {
         setMode(themeSettings.isDarkMode ? 'dark' : 'light');
@@ -60,12 +85,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     // Fallback to localStorage for backwards compatibility
     const savedMode = localStorage.getItem('theme-mode') as ThemeMode
     const savedColors = localStorage.getItem('theme-colors')
+    const savedFonts = localStorage.getItem('theme-fonts')
     
-    if (savedMode || savedColors) {
+    if (savedMode || savedColors || savedFonts) {
       console.log('Loading theme from localStorage, will sync to database');
       
       let newMode = mode;
       let newColors = colors;
+      let newFonts = fonts;
       
       if (savedMode) {
         newMode = savedMode;
@@ -81,12 +108,24 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           console.error('Failed to parse saved colors:', e)
         }
       }
+
+      if (savedFonts) {
+        try {
+          const parsedFonts = JSON.parse(savedFonts);
+          newFonts = parsedFonts;
+          setFonts(parsedFonts);
+        } catch (e) {
+          console.error('Failed to parse saved fonts:', e)
+        }
+      }
       
       // Sync to database
       if (updateThemeSettings) {
         updateThemeSettings({
           primaryColor: newColors.primary,
           backgroundColor: newColors.background,
+          fontFamily: newFonts.family,
+          fontSize: newFonts.size,
           isDarkMode: newMode === 'dark'
         });
       }
@@ -185,13 +224,21 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       console.log('Applied default gradient background for', effectiveTheme, 'theme');
     }
     
+    // Apply fonts to document
+    console.log('Applying fonts:', fonts);
+    root.style.setProperty('--font-family', fonts.family);
+    root.style.setProperty('--font-size', `${fonts.size}px`);
+    document.body.style.fontFamily = fonts.family;
+    document.body.style.fontSize = `${fonts.size}px`;
+    
     // Save to localStorage for immediate response
     localStorage.setItem('theme-mode', mode)
     localStorage.setItem('theme-colors', JSON.stringify(colors))
+    localStorage.setItem('theme-fonts', JSON.stringify(fonts))
     
     // Only save to database on user-initiated changes, not on initial load
     // This prevents excessive API calls during component initialization
-  }, [mode, colors, effectiveTheme, isLoaded])
+  }, [mode, colors, fonts, effectiveTheme, isLoaded])
 
   const handleSetMode = (newMode: ThemeMode) => {
     setMode(newMode);
@@ -204,6 +251,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       updateThemeSettings({
         primaryColor: colors.primary,
         backgroundColor: colors.background,
+        fontFamily: fonts.family,
+        fontSize: fonts.size,
         isDarkMode: newMode === 'dark'
       });
     }
@@ -222,25 +271,51 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       updateThemeSettings({
         primaryColor: updatedColors.primary,
         backgroundColor: updatedColors.background,
+        fontFamily: fonts.family,
+        fontSize: fonts.size,
         isDarkMode: mode === 'dark'
       });
     }
     console.log('Colors updated and saved:', updatedColors);
   }
 
+  const handleSetFonts = (newFonts: Partial<FontSettings>) => {
+    const updatedFonts = { ...fonts, ...newFonts };
+    setFonts(updatedFonts);
+    
+    // Immediately save to localStorage
+    localStorage.setItem('theme-fonts', JSON.stringify(updatedFonts));
+    
+    // Save to database
+    if (updateThemeSettings) {
+      updateThemeSettings({
+        primaryColor: colors.primary,
+        backgroundColor: colors.background,
+        fontFamily: updatedFonts.family,
+        fontSize: updatedFonts.size,
+        isDarkMode: mode === 'dark'
+      });
+    }
+    console.log('Fonts updated and saved:', updatedFonts);
+  }
+
   const resetToDefaults = () => {
     setMode('system')
     setColors(defaultColors)
+    setFonts(defaultFonts)
     
     // Immediately save to localStorage
     localStorage.setItem('theme-mode', 'system')
     localStorage.setItem('theme-colors', JSON.stringify(defaultColors))
+    localStorage.setItem('theme-fonts', JSON.stringify(defaultFonts))
     
     // Save to database
     if (updateThemeSettings) {
       updateThemeSettings({
         primaryColor: defaultColors.primary,
         backgroundColor: defaultColors.background,
+        fontFamily: defaultFonts.family,
+        fontSize: defaultFonts.size,
         isDarkMode: false
       });
     }
@@ -251,9 +326,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     <ThemeContext.Provider value={{
       mode,
       colors,
+      fonts,
       effectiveTheme,
       setMode: handleSetMode,
       setColors: handleSetColors,
+      setFonts: handleSetFonts,
       resetToDefaults
     }}>
       {children}

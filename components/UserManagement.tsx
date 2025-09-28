@@ -5,6 +5,19 @@ import { createPortal } from 'react-dom';
 import { UserCircle, ShieldCheck, Trash2, Loader2, PlusCircle, Edit2, Save, X, Check, ChevronDown } from 'lucide-react';
 import { useTheme } from '@/lib/theme-context';
 
+interface User {
+  id: number;
+  username: string;
+  role: 'admin' | 'staff';
+  teams?: string | string[]; // Can be JSON string or array
+  adserView?: string | string[]; // Can be JSON string or array
+  createdAt: string;
+}
+
+interface EditingUser extends User {
+  newPassword?: string;
+}
+
 // Custom Multi-Select Dropdown Component
 const MultiSelectDropdown = ({ options, selectedValues, onChange, placeholder = "เลือกทีม" }: {
   options: string[];
@@ -127,16 +140,36 @@ const MultiSelectDropdown = ({ options, selectedValues, onChange, placeholder = 
 
 export default function UserManagement() {
   const { colors } = useTheme();
-  const [users, setUsers] = useState<unknown[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [form, setForm] = useState({ username: '', password: '', role: 'staff', teams: [] as string[] });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [editingUser, setEditingUser] = useState<any>(null);
+  const [editingUser, setEditingUser] = useState<EditingUser | null>(null);
   const [adserOptions, setAdserOptions] = useState<string[]>([]);
   const [teamOptions, setTeamOptions] = useState<string[]>([]);
   const [teamAdvertiserMapping, setTeamAdvertiserMapping] = useState<{[key: string]: string[]}>({});
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+
+  // Helper functions to handle string/array conversion
+  const parseJsonField = (field: string | string[] | undefined): string[] => {
+    if (!field) return [];
+    if (Array.isArray(field)) return field;
+    try {
+      const parsed = JSON.parse(field);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const getTeamsArray = (user: User | EditingUser): string[] => {
+    return parseJsonField(user.teams);
+  };
+
+  const getAdserViewArray = (user: User | EditingUser): string[] => {
+    return parseJsonField(user.adserView);
+  };
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -149,7 +182,7 @@ export default function UserManagement() {
       if (!res.ok) throw new Error(data.error || 'Failed to fetch users');
       setUsers(data.users);
     } catch (err: unknown) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'Unknown error occurred');
     } finally {
       setLoading(false);
     }
@@ -205,13 +238,13 @@ export default function UserManagement() {
       setForm({ username: '', password: '', role: 'staff', teams: [] });
       fetchUsers();
     } catch (err: unknown) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'Failed to create user');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: number) => {
     if (!confirm('คุณแน่ใจหรือไม่ที่จะลบผู้ใช้นี้?')) return;
     setLoading(true);
     setError('');
@@ -225,7 +258,7 @@ export default function UserManagement() {
       if (!res.ok) throw new Error(data.error || 'Failed to delete user');
       fetchUsers();
     } catch (err: unknown) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'Failed to delete user');
     } finally {
       setLoading(false);
     }
@@ -236,9 +269,14 @@ export default function UserManagement() {
     setLoading(true);
     setError('');
     try {
-      const updateData: unknown = {
+      const updateData: {
+        id: number;
+        adserView: string | string[];
+        teams: string | string[];
+        password?: string;
+      } = {
         id: editingUser.id,
-        adserView: editingUser.adserView,
+        adserView: editingUser.adserView || [],
         teams: editingUser.role === 'admin' ? [] : (editingUser.teams || [])
       };
       if (editingUser.newPassword) {
@@ -254,7 +292,7 @@ export default function UserManagement() {
       setEditingUser(null);
       fetchUsers();
     } catch (err: unknown) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'Failed to update user');
     } finally {
       setLoading(false);
     }
@@ -262,7 +300,7 @@ export default function UserManagement() {
 
   const toggleAdser = (adserName: string) => {
     if (!editingUser) return;
-    const adserView = editingUser.adserView || [];
+    const adserView = getAdserViewArray(editingUser);
     const newAdserView = adserView.includes(adserName)
       ? adserView.filter((a: string) => a !== adserName)
       : [...adserView, adserName];
@@ -442,7 +480,7 @@ export default function UserManagement() {
                         <div className="max-w-md">
                           <MultiSelectDropdown
                             options={teamOptions}
-                            selectedValues={editingUser.teams || []}
+                            selectedValues={getTeamsArray(editingUser)}
                             onChange={(values) => setEditingUser({ 
                               ...editingUser, 
                               teams: values,
@@ -475,7 +513,7 @@ export default function UserManagement() {
                         <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                           {editingUser.role === 'admin' 
                             ? 'Adser ที่สามารถดูได้ (ทุกทีม):' 
-                            : `Adser ที่สามารถดูได้ (ทีม: ${editingUser.teams.join(', ')}):`
+                            : `Adser ที่สามารถดูได้ (ทีม: ${getTeamsArray(editingUser).join(', ')}):`
                           }
                         </label>
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1 max-h-24 overflow-y-auto">
@@ -498,7 +536,7 @@ export default function UserManagement() {
                               ));
                             } else {
                               // พนักงานเห็นแค่ adser ของทีมที่เลือก
-                              const availableAdsers = editingUser.teams.reduce((acc: string[], team: string) => {
+                              const availableAdsers = getTeamsArray(editingUser).reduce((acc: string[], team: string) => {
                                 const teamAdsers = teamAdvertiserMapping[team] || [];
                                 teamAdsers.forEach(adser => {
                                   if (!acc.includes(adser)) acc.push(adser);
@@ -538,11 +576,11 @@ export default function UserManagement() {
                         </div>
                         <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
                           {u.role === 'admin' ? 'แอดมิน (ดูได้ทุกทีม)' : 'พนักงาน'}
-                          {u.role === 'staff' && u.teams && u.teams.length > 0 && (
+                          {u.role === 'staff' && getTeamsArray(u).length > 0 && (
                             <>
                               <span className="text-gray-300 dark:text-gray-600">•</span>
                               <div className="flex flex-wrap gap-1">
-                                {u.teams.map((team: string) => (
+                                {getTeamsArray(u).map((team: string) => (
                                   <span 
                                     key={team} 
                                     className="px-1 py-0.5 rounded text-xs font-medium text-white"
@@ -582,11 +620,11 @@ export default function UserManagement() {
                     </div>
 
                     {/* แสดง Adser ที่สามารถดูได้ */}
-                    {u.adserView && u.adserView.length > 0 && (
+                    {getAdserViewArray(u).length > 0 && (
                       <div className="border-t pt-2">
                         <div className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Adser ที่สามารถดูได้:</div>
                         <div className="flex flex-wrap gap-1">
-                          {u.adserView.map((adser: string) => (
+                          {getAdserViewArray(u).map((adser: string) => (
                             <span 
                               key={adser} 
                               className="px-1 py-0.5 rounded text-xs font-medium"

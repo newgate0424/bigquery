@@ -4,12 +4,13 @@ import { useEffect, useState, memo, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { useTheme } from '@/lib/theme-context';
 import dayjs from 'dayjs';
 import 'dayjs/locale/th';
 import localizedFormat from 'dayjs/plugin/localizedFormat';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { DateRange } from 'react-day-picker';
-import { DateRangePickerWithPresets } from '@/components/date-range-picker-with-presets';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { adserTeamGroups, cpmThresholds, costPerDepositThresholds, depositsMonthlyTargets, calculateDailyTarget, calculateMonthlyTarget, coverTargets } from '@/lib/adser-config';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine, Label } from 'recharts';
@@ -17,11 +18,9 @@ import useSWR from 'swr';
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronsUpDown, Wifi, ChevronRight, ChevronLeft, TrendingUp, Settings, PlusCircle, XCircle } from 'lucide-react';
+import { Wifi, ChevronRight, ChevronLeft, TrendingUp, Settings, PlusCircle, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from '@/components/ui/input';
-import { Label as FormLabel } from '@/components/ui/label';
 import { toast } from 'sonner';
 
 dayjs.extend(localizedFormat);
@@ -149,6 +148,7 @@ const RealTimeStatus = memo(({ lastUpdate }: { lastUpdate: Date | null }) => {
         </div>
     );
 });
+RealTimeStatus.displayName = 'RealTimeStatus';
 
 const ExchangeRateSmall = memo(({ rate, isLoading, isFallback }: { rate: number | null, isLoading: boolean, isFallback: boolean }) => {
     if (isLoading) return <Skeleton className="h-6 w-16" />;
@@ -158,6 +158,7 @@ const ExchangeRateSmall = memo(({ rate, isLoading, isFallback }: { rate: number 
         </div>
     );
 });
+ExchangeRateSmall.displayName = 'ExchangeRateSmall';
 
 const ProgressCell = memo(({ value, total, isCurrency = false }: { value: number; total: number; isCurrency?: boolean }) => {
     const percentage = total > 0 ? (value / total) * 100 : 0;
@@ -177,12 +178,14 @@ const ProgressCell = memo(({ value, total, isCurrency = false }: { value: number
         </div>
     );
 });
+ProgressCell.displayName = 'ProgressCell';
 
 const FinancialMetric = memo(({ value, prefix = '', suffix = '' }: { value: number, prefix?: string, suffix?: string }) => (
     <div className="text-sm font-medium">
         {prefix}{formatNumber(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{suffix}
     </div>
 ));
+FinancialMetric.displayName = 'FinancialMetric';
 
 const BreakdownCell = memo(({ value, total }: { value: number, total: number }) => {
     const percentage = total > 0 ? (value / total) * 100 : 0;
@@ -470,6 +473,7 @@ const ColorSettingsPopover = memo(({ groupName, teamNames, settings, onSave }: {
 
 // --- Main Page Component ---
 export default function AdserPage() {
+    const { effectiveTheme } = useTheme();
     const [isClient, setIsClient] = useState(false);
     const [tableDateRange, setTableDateRange] = useState<DateRange | undefined>(undefined);
     const [showBreakdown, setShowBreakdown] = useState(false);
@@ -638,20 +642,36 @@ export default function AdserPage() {
     const yearOptions = Array.from({ length: 5 }, (_, i) => dayjs().year() - i);
 
     return (
-        <div className="h-screen p-4 sm:p-6" data-page="adser">
-            <Card className="h-full overflow-hidden">
+        <div 
+            className={cn(
+                "h-screen p-4 sm:p-6 transition-colors duration-200",
+                effectiveTheme === 'dark' 
+                    ? "bg-slate-900 text-slate-100" 
+                    : "bg-slate-50 text-slate-900"
+            )}
+            data-page="adser"
+        >
+            <Card className={cn(
+                "h-full overflow-hidden border-0 shadow-lg transition-colors duration-200",
+                effectiveTheme === 'dark'
+                    ? "bg-slate-800 shadow-slate-900/50"
+                    : "bg-white shadow-slate-200/50"
+            )}>
                 <div className="h-full overflow-y-auto p-6">
                     <div className="space-y-6">
                         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
                             <div className="flex items-center gap-4">
-                                <h1 className="text-2xl font-bold tracking-tight">ภาพรวม Adser</h1>
+                                <h1 className={cn(
+                                    "text-2xl font-bold tracking-tight transition-colors duration-200",
+                                    effectiveTheme === 'dark' ? "text-slate-100" : "text-slate-900"
+                                )}>ภาพรวม Adser</h1>
                                 <RealTimeStatus lastUpdate={lastUpdate} />
                                 {connectionError && <div className="text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded">{connectionError}</div>}
                             </div>
                         <div className="flex flex-col sm:flex-row gap-2">
                             <div>
                                 <p className="text-xs text-muted-foreground mb-1 text-center sm:text-left">ข้อมูลตาราง</p>
-                                {isClient ? <DateRangePickerWithPresets initialDateRange={tableDateRange} onDateRangeChange={setTableDateRange} /> : <Skeleton className="h-9 w-[260px]" />}
+                                {isClient ? <DateRangePicker date={tableDateRange} onDateChange={setTableDateRange} /> : <Skeleton className="h-9 w-[260px]" />}
                             </div>
                             <div className="flex flex-col items-center sm:items-start">
                                 <p className="text-xs text-muted-foreground mb-1">ข้อมูลกราฟ</p>

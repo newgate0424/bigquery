@@ -55,10 +55,39 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    return NextResponse.json(preferences);
+    // Parse JSON strings back to objects for the client
+    const parsedPreferences = {
+      ...preferences,
+      sidebarSettings: preferences.sidebarSettings ? 
+        tryParseJSON(preferences.sidebarSettings) : null,
+      themeSettings: preferences.themeSettings ? 
+        tryParseJSON(preferences.themeSettings) : null,
+      filterSettings: preferences.filterSettings ? 
+        tryParseJSON(preferences.filterSettings) : null,
+      columnVisibility: preferences.columnVisibility ? 
+        tryParseJSON(preferences.columnVisibility) : null,
+      columnWidths: preferences.columnWidths ? 
+        tryParseJSON(preferences.columnWidths) : null,
+      colorConfiguration: preferences.colorConfiguration ? 
+        tryParseJSON(preferences.colorConfiguration) : null,
+      tableSettings: preferences.tableSettings ? 
+        tryParseJSON(preferences.tableSettings) : null,
+    };
+
+    return NextResponse.json(parsedPreferences);
   } catch (error) {
     console.error('Error fetching preferences:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// Helper function to safely parse JSON
+function tryParseJSON(jsonString: string) {
+  try {
+    return JSON.parse(jsonString);
+  } catch (error) {
+    console.error('Error parsing JSON:', error);
+    return null;
   }
 }
 
@@ -82,31 +111,66 @@ export async function POST(request: NextRequest) {
       tableSettings 
     } = body;
 
+    // Convert objects to JSON strings for database storage
+    const updateData: any = {};
+    const createData: any = { userId };
+
+    if (sidebarSettings !== undefined) {
+      updateData.sidebarSettings = JSON.stringify(sidebarSettings);
+      createData.sidebarSettings = JSON.stringify(sidebarSettings);
+    }
+    if (themeSettings !== undefined) {
+      updateData.themeSettings = JSON.stringify(themeSettings);
+      createData.themeSettings = JSON.stringify(themeSettings);
+    }
+    if (filterSettings !== undefined) {
+      updateData.filterSettings = JSON.stringify(filterSettings);
+      createData.filterSettings = JSON.stringify(filterSettings);
+    }
+    if (columnVisibility !== undefined) {
+      updateData.columnVisibility = JSON.stringify(columnVisibility);
+      createData.columnVisibility = JSON.stringify(columnVisibility);
+    }
+    if (columnWidths !== undefined) {
+      updateData.columnWidths = JSON.stringify(columnWidths);
+      createData.columnWidths = JSON.stringify(columnWidths);
+    }
+    if (colorConfiguration !== undefined) {
+      updateData.colorConfiguration = JSON.stringify(colorConfiguration);
+      createData.colorConfiguration = JSON.stringify(colorConfiguration);
+    }
+    if (tableSettings !== undefined) {
+      updateData.tableSettings = JSON.stringify(tableSettings);
+      createData.tableSettings = JSON.stringify(tableSettings);
+    }
+
     // ใช้ upsert เพื่อสร้างใหม่หรืออัปเดต
     const preferences = await prisma.userPreferences.upsert({
       where: { userId },
-      update: {
-        ...(sidebarSettings !== undefined && { sidebarSettings }),
-        ...(themeSettings !== undefined && { themeSettings }),
-        ...(filterSettings !== undefined && { filterSettings }),
-        ...(columnVisibility !== undefined && { columnVisibility }),
-        ...(columnWidths !== undefined && { columnWidths }),
-        ...(colorConfiguration !== undefined && { colorConfiguration }),
-        ...(tableSettings !== undefined && { tableSettings }),
-      },
-      create: {
-        userId,
-        ...(sidebarSettings !== undefined && { sidebarSettings }),
-        ...(themeSettings !== undefined && { themeSettings }),
-        ...(filterSettings !== undefined && { filterSettings }),
-        ...(columnVisibility !== undefined && { columnVisibility }),
-        ...(columnWidths !== undefined && { columnWidths }),
-        ...(colorConfiguration !== undefined && { colorConfiguration }),
-        ...(tableSettings !== undefined && { tableSettings })
-      }
+      update: updateData,
+      create: createData
     });
 
-    return NextResponse.json(preferences);
+    // Parse the saved preferences back to objects for the response
+    const parsedPreferences = {
+      ...preferences,
+      sidebarSettings: preferences.sidebarSettings ? 
+        tryParseJSON(preferences.sidebarSettings) : null,
+      themeSettings: preferences.themeSettings ? 
+        tryParseJSON(preferences.themeSettings) : null,
+      filterSettings: preferences.filterSettings ? 
+        tryParseJSON(preferences.filterSettings) : null,
+      columnVisibility: preferences.columnVisibility ? 
+        tryParseJSON(preferences.columnVisibility) : null,
+      columnWidths: preferences.columnWidths ? 
+        tryParseJSON(preferences.columnWidths) : null,
+      colorConfiguration: preferences.colorConfiguration ? 
+        tryParseJSON(preferences.colorConfiguration) : null,
+      tableSettings: preferences.tableSettings ? 
+        tryParseJSON(preferences.tableSettings) : null,
+    };
+
+    return NextResponse.json(parsedPreferences);
   } catch (error) {
     console.error('Error saving preferences:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -137,27 +201,40 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields: type and data' }, { status: 400 });
     }
 
-      const updateData: Record<string, unknown> = {};    switch (type) {
+    // Convert data to JSON string for database storage
+    const jsonData = JSON.stringify(data);
+
+    const updateData: Record<string, string> = {};
+    const createData: any = { userId };
+
+    switch (type) {
       case 'sidebar':
-        updateData.sidebarSettings = data;
+        updateData.sidebarSettings = jsonData;
+        createData.sidebarSettings = jsonData;
         break;
       case 'theme':
-        updateData.themeSettings = data;
+        updateData.themeSettings = jsonData;
+        createData.themeSettings = jsonData;
         break;
       case 'filter':
-        updateData.filterSettings = data;
+        updateData.filterSettings = jsonData;
+        createData.filterSettings = jsonData;
         break;
       case 'columns':
-        updateData.columnVisibility = data;
+        updateData.columnVisibility = jsonData;
+        createData.columnVisibility = jsonData;
         break;
       case 'widths':
-        updateData.columnWidths = data;
+        updateData.columnWidths = jsonData;
+        createData.columnWidths = jsonData;
         break;
       case 'colors':
-        updateData.colorConfiguration = data;
+        updateData.colorConfiguration = jsonData;
+        createData.colorConfiguration = jsonData;
         break;
       case 'table':
-        updateData.tableSettings = data;
+        updateData.tableSettings = jsonData;
+        createData.tableSettings = jsonData;
         break;
       default:
         return NextResponse.json({ error: 'Invalid preference type' }, { status: 400 });
@@ -166,19 +243,29 @@ export async function PATCH(request: NextRequest) {
     const preferences = await prisma.userPreferences.upsert({
       where: { userId },
       update: updateData,
-      create: {
-        userId,
-        ...(type === 'sidebar' && { sidebarSettings: data }),
-        ...(type === 'theme' && { themeSettings: data }),
-        ...(type === 'filter' && { filterSettings: data }),
-        ...(type === 'columns' && { columnVisibility: data }),
-        ...(type === 'widths' && { columnWidths: data }),
-        ...(type === 'colors' && { colorConfiguration: data }),
-        ...(type === 'table' && { tableSettings: data })
-      }
+      create: createData
     });
 
-    return NextResponse.json(preferences);
+    // Parse the updated preferences back to objects for the response
+    const parsedPreferences = {
+      ...preferences,
+      sidebarSettings: preferences.sidebarSettings ? 
+        tryParseJSON(preferences.sidebarSettings) : null,
+      themeSettings: preferences.themeSettings ? 
+        tryParseJSON(preferences.themeSettings) : null,
+      filterSettings: preferences.filterSettings ? 
+        tryParseJSON(preferences.filterSettings) : null,
+      columnVisibility: preferences.columnVisibility ? 
+        tryParseJSON(preferences.columnVisibility) : null,
+      columnWidths: preferences.columnWidths ? 
+        tryParseJSON(preferences.columnWidths) : null,
+      colorConfiguration: preferences.colorConfiguration ? 
+        tryParseJSON(preferences.colorConfiguration) : null,
+      tableSettings: preferences.tableSettings ? 
+        tryParseJSON(preferences.tableSettings) : null,
+    };
+
+    return NextResponse.json(parsedPreferences);
   } catch (error) {
     console.error('Error updating preferences:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
