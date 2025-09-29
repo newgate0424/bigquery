@@ -119,6 +119,7 @@
   body {
     @apply text-foreground;
     /* Background and font will be handled by theme-context */
+    background: transparent !important; /* Let page gradients show through */
     font-family: var(--font-family, Inter, system-ui, -apple-system, sans-serif);
     font-size: var(--font-size, 14px);
   }

@@ -81,7 +81,7 @@ export function ToggleGroupItem({
         "disabled:pointer-events-none disabled:opacity-50",
         "h-9 px-3 py-2",
         isSelected
-          ? "bg-accent text-accent-foreground"
+          ? "bg-primary text-primary-foreground"
           : "hover:bg-muted hover:text-muted-foreground",
         className
       )}
