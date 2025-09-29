@@ -4,7 +4,7 @@ class PreferencesDebouncer {
   private static instance: PreferencesDebouncer;
   private pendingUpdates: Map<string, any> = new Map();
   private timeouts: Map<string, NodeJS.Timeout> = new Map();
-  private readonly DEBOUNCE_DELAY = 500; // 500ms delay
+  private readonly DEBOUNCE_DELAY = 1000; // Increase to 1 second for better batching
 
   static getInstance(): PreferencesDebouncer {
     if (!PreferencesDebouncer.instance) {
@@ -18,28 +18,32 @@ class PreferencesDebouncer {
     data: unknown,
     callback: () => Promise<boolean>
   ): void {
-    console.log(`Debouncer called for ${type} with data:`, data);
+    // Reduce console logging for performance
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`Debouncer called for ${type}`);
+    }
     
     // Clear existing timeout for this type
     const existingTimeout = this.timeouts.get(type);
     if (existingTimeout) {
-      console.log(`Clearing existing timeout for ${type}`);
       clearTimeout(existingTimeout);
     }
 
     // Store the latest data for this type
     this.pendingUpdates.set(type, data);
-    console.log(`Pending updates now has ${this.pendingUpdates.size} items`);
 
     // Set new timeout
     const timeout = setTimeout(async () => {
       const pendingData = this.pendingUpdates.get(type);
       if (pendingData) {
-        console.log(`Executing debounced ${type} preferences update:`, pendingData);
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`Executing debounced ${type} preferences update`);
+        }
         try {
-          await callback();
-          this.pendingUpdates.delete(type);
-          console.log(`Successfully completed ${type} update`);
+          const success = await callback();
+          if (success) {
+            this.pendingUpdates.delete(type);
+          }
         } catch (error) {
           console.error(`Error in debounced ${type} update:`, error);
         }
@@ -48,7 +52,6 @@ class PreferencesDebouncer {
     }, this.DEBOUNCE_DELAY);
 
     this.timeouts.set(type, timeout);
-    console.log(`Set timeout for ${type} with ${this.DEBOUNCE_DELAY}ms delay`);
   }
 
   // Cancel all pending updates (useful on logout)

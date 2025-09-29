@@ -159,82 +159,121 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isLoaded) return; // Don't apply until loaded from localStorage
     
-    const root = document.documentElement
-    
-    // Apply dark/light class
-    root.classList.remove('light', 'dark')
-    root.classList.add(effectiveTheme)
-    
-    // Convert hex to hsl for CSS variables
-    const hexToHsl = (hex: string) => {
-      const r = parseInt(hex.slice(1, 3), 16) / 255;
-      const g = parseInt(hex.slice(3, 5), 16) / 255;
-      const b = parseInt(hex.slice(5, 7), 16) / 255;
+    // Wait for DOM to be ready
+    const applyTheme = () => {
+      const root = document.documentElement
       
-      const max = Math.max(r, g, b);
-      const min = Math.min(r, g, b);
-      let h = 0, s = 0;
-      const l = (max + min) / 2;
+      // Apply dark/light class
+      root.classList.remove('light', 'dark')
+      root.classList.add(effectiveTheme)
       
-      if (max !== min) {
-        const d = max - min;
-        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-        switch (max) {
-          case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-          case g: h = (b - r) / d + 2; break;
-          case b: h = (r - g) / d + 4; break;
+      // Convert hex to hsl for CSS variables
+      const hexToHsl = (hex: string) => {
+        const r = parseInt(hex.slice(1, 3), 16) / 255;
+        const g = parseInt(hex.slice(3, 5), 16) / 255;
+        const b = parseInt(hex.slice(5, 7), 16) / 255;
+        
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        let h = 0, s = 0;
+        const l = (max + min) / 2;
+        
+        if (max !== min) {
+          const d = max - min;
+          s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+          switch (max) {
+            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+            case g: h = (b - r) / d + 2; break;
+            case b: h = (r - g) / d + 4; break;
+          }
+          h /= 6;
         }
-        h /= 6;
+        
+        return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
+      };
+      
+      console.log('Applying theme colors:', colors);
+      
+      // Apply primary color
+      if (colors.primary.startsWith('#')) {
+        const hslPrimary = hexToHsl(colors.primary);
+        root.style.setProperty('--primary', `hsl(${hslPrimary})`);
+        root.style.setProperty('--color-primary', `hsl(${hslPrimary})`);
+        // Also update ring color to match primary for focus states
+        root.style.setProperty('--ring', `hsl(${hslPrimary})`);
+        root.style.setProperty('--color-ring', `hsl(${hslPrimary})`);
       }
       
-      return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
+      // Handle background - support both solid colors and gradients
+      if (colors.background.startsWith('linear-gradient')) {
+        // For gradients, apply to body background and page containers
+        document.body.style.background = colors.background;
+        root.style.setProperty('--background-gradient', colors.background);
+        root.style.setProperty('--color-background', 'transparent');
+        
+        // Apply to specific page containers
+        const pageContainers = document.querySelectorAll('[data-page]');
+        pageContainers.forEach(container => {
+          (container as HTMLElement).style.background = colors.background;
+        });
+        
+        console.log('Applied gradient background to pages:', colors.background);
+      } else if (colors.background.startsWith('#')) {
+        // For solid colors, update CSS variables and all backgrounds
+        const hslBackground = hexToHsl(colors.background);
+        root.style.setProperty('--background', `hsl(${hslBackground})`);
+        root.style.setProperty('--color-background', colors.background);
+        root.style.setProperty('--background-gradient', 'none');
+        document.body.style.background = colors.background;
+        
+        // Apply to specific page containers
+        const pageContainers = document.querySelectorAll('[data-page]');
+        pageContainers.forEach(container => {
+          (container as HTMLElement).style.background = colors.background;
+        });
+        
+        console.log('Applied solid background to pages:', colors.background);
+      } else {
+        // Default fallback - apply to all containers
+        const defaultGradient = effectiveTheme === 'dark' 
+          ? 'linear-gradient(135deg, #1e293b, #334155, #475569)'
+          : 'linear-gradient(135deg, #f8fafc, #e2e8f0, #cbd5e1)';
+        document.body.style.background = defaultGradient;
+        root.style.setProperty('--background-gradient', defaultGradient);
+        
+        // Apply to specific page containers
+        const pageContainers = document.querySelectorAll('[data-page]');
+        pageContainers.forEach(container => {
+          (container as HTMLElement).style.background = defaultGradient;
+        });
+        
+        console.log('Applied default gradient to pages for', effectiveTheme, 'theme');
+      }
+      
+      // Apply fonts to document
+      console.log('Applying fonts:', fonts);
+      root.style.setProperty('--font-family', fonts.family);
+      root.style.setProperty('--font-size', `${fonts.size}px`);
+      document.body.style.fontFamily = fonts.family;
+      document.body.style.fontSize = `${fonts.size}px`;
+      
+      // Save to localStorage for immediate response
+      localStorage.setItem('theme-mode', mode)
+      localStorage.setItem('theme-colors', JSON.stringify(colors))
+      localStorage.setItem('theme-fonts', JSON.stringify(fonts))
     };
     
-    console.log('Applying theme colors:', colors);
-    
-    // Apply primary color
-    if (colors.primary.startsWith('#')) {
-      const hslPrimary = hexToHsl(colors.primary);
-      root.style.setProperty('--primary', `hsl(${hslPrimary})`);
-      root.style.setProperty('--color-primary', colors.primary);
-    }
-    
-    // Handle background - support both solid colors and gradients
-    if (colors.background.startsWith('linear-gradient')) {
-      // For gradients, apply to body background and CSS variable
-      document.body.style.background = colors.background;
-      root.style.setProperty('--background-gradient', colors.background);
-      root.style.setProperty('--color-background', 'transparent'); // Clear solid background
-      console.log('Applied gradient background:', colors.background);
-    } else if (colors.background.startsWith('#')) {
-      // For solid colors, update CSS variables and body
-      const hslBackground = hexToHsl(colors.background);
-      root.style.setProperty('--background', `hsl(${hslBackground})`);
-      root.style.setProperty('--color-background', colors.background);
-      root.style.setProperty('--background-gradient', 'none'); // Clear gradient
-      document.body.style.background = colors.background; // Apply to body for full coverage
-      console.log('Applied solid background:', colors.background);
+    // Run immediately if DOM is ready, otherwise wait
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', applyTheme);
     } else {
-      // Default fallback gradient for better UX
-      const defaultGradient = effectiveTheme === 'dark' 
-        ? 'linear-gradient(135deg, #1e293b, #334155, #475569)'
-        : 'linear-gradient(135deg, #f8fafc, #e2e8f0, #cbd5e1)';
-      document.body.style.background = defaultGradient;
-      root.style.setProperty('--background-gradient', defaultGradient);
-      console.log('Applied default gradient background for', effectiveTheme, 'theme');
+      // Use setTimeout to ensure all components have mounted
+      setTimeout(applyTheme, 100);
     }
     
-    // Apply fonts to document
-    console.log('Applying fonts:', fonts);
-    root.style.setProperty('--font-family', fonts.family);
-    root.style.setProperty('--font-size', `${fonts.size}px`);
-    document.body.style.fontFamily = fonts.family;
-    document.body.style.fontSize = `${fonts.size}px`;
-    
-    // Save to localStorage for immediate response
-    localStorage.setItem('theme-mode', mode)
-    localStorage.setItem('theme-colors', JSON.stringify(colors))
-    localStorage.setItem('theme-fonts', JSON.stringify(fonts))
+    return () => {
+      document.removeEventListener('DOMContentLoaded', applyTheme);
+    };
     
     // Only save to database on user-initiated changes, not on initial load
     // This prevents excessive API calls during component initialization
@@ -265,6 +304,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     
     // Immediately save to localStorage
     localStorage.setItem('theme-colors', JSON.stringify(updatedColors));
+    
+    // Immediately apply background to page containers
+    if (updatedColors.background) {
+      const pageContainers = document.querySelectorAll('[data-page]');
+      pageContainers.forEach(container => {
+        (container as HTMLElement).style.background = updatedColors.background;
+      });
+      document.body.style.background = updatedColors.background;
+      console.log('Immediately applied background to pages:', updatedColors.background);
+    }
     
     // Save to database
     if (updateThemeSettings) {

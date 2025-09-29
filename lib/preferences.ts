@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { PreferenceNotifications } from './notifications';
 import { PreferencesDebouncer } from './preferences-debouncer';
+import { CacheManager, CACHE_KEYS } from './cache-manager';
 
 export interface ColorRule {
   id: string;
@@ -94,6 +95,7 @@ export interface TableSettings {
 export class PreferencesAPI {
   private static readonly MAX_RETRIES = 3;
   private static readonly RETRY_DELAY = 1000; // 1 second
+  private static cache = CacheManager.getInstance();
 
   // Utility function for retry logic
   private static async withRetry<T>(
@@ -129,46 +131,70 @@ export class PreferencesAPI {
 
   // ดึงข้อมูล preferences ทั้งหมด
   static async getPreferences(): Promise<UserPreferences | null> {
-    return this.withRetry(async () => {
-      const response = await fetch('/api/preferences', {
-        headers: this.getAuthHeaders()
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    
+    // Get user ID for cache key
+    const userId = this.getUserIdFromToken();
+    if (!userId) return null;
+
+    const cacheKey = CACHE_KEYS.USER_PREFERENCES(userId);
+    
+    return this.cache.get(cacheKey, async () => {
+      return this.withRetry(async () => {
+        const response = await fetch('/api/preferences', {
+          headers: this.getAuthHeaders()
+        });
+
+        if (!response.ok) {
+          console.error('API Error:', response.status, response.statusText);
+          
+          // If unauthorized, user might not be logged in
+          if (response.status === 401) {
+            console.warn('User not authenticated, preferences not available');
+            const authError = new Error('Unauthorized');
+            (authError as Error & { status: number }).status = 401;
+            throw authError;
+          }
+          
+          // Try to get error message from response
+          try {
+            const errorData = await response.json();
+            console.error('API Error Details:', errorData);
+            const apiError = new Error(errorData.error || 'API Error');
+            (apiError as Error & { status: number }).status = response.status;
+            throw apiError;
+          } catch {
+            console.error('Could not parse error response');
+            const apiError = new Error('API Error');
+            (apiError as Error & { status: number }).status = response.status;
+            throw apiError;
+          }
+        }
+
+        return await response.json();
+      }).catch(error => {
+        if (this.isAuthError(error)) {
+          console.warn('Authentication error, returning null');
+          return null;
+        }
+        console.error('Failed to fetch preferences after retries:', error);
+        return null; // Return null on network errors to allow fallback to localStorage
       });
+    }, 2 * 60 * 1000); // Cache for 2 minutes
+  }
 
-      if (!response.ok) {
-        console.error('API Error:', response.status, response.statusText);
-        
-        // If unauthorized, user might not be logged in
-        if (response.status === 401) {
-          console.warn('User not authenticated, preferences not available');
-          const authError = new Error('Unauthorized');
-          (authError as Error & { status: number }).status = 401;
-          throw authError;
-        }
-        
-        // Try to get error message from response
-        try {
-          const errorData = await response.json();
-          console.error('API Error Details:', errorData);
-          const apiError = new Error(errorData.error || 'API Error');
-          (apiError as Error & { status: number }).status = response.status;
-          throw apiError;
-        } catch {
-          console.error('Could not parse error response');
-          const apiError = new Error('API Error');
-          (apiError as Error & { status: number }).status = response.status;
-          throw apiError;
-        }
-      }
-
-      return await response.json();
-    }).catch(error => {
-      if (this.isAuthError(error)) {
-        console.warn('Authentication error, returning null');
-        return null;
-      }
-      console.error('Failed to fetch preferences after retries:', error);
-      return null; // Return null on network errors to allow fallback to localStorage
-    });
+  // Get user ID from token for cache key
+  private static getUserIdFromToken(): string | null {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return null;
+      
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload.id?.toString() || null;
+    } catch {
+      return null;
+    }
   }
 
   // บันทึก preferences ทั้งหมด
@@ -179,6 +205,14 @@ export class PreferencesAPI {
         headers: this.getAuthHeaders(),
         body: JSON.stringify(preferences)
       });
+
+      if (response.ok) {
+        // Invalidate cache after successful update
+        const userId = this.getUserIdFromToken();
+        if (userId) {
+          this.cache.invalidate(CACHE_KEYS.USER_PREFERENCES(userId));
+        }
+      }
 
       return response.ok;
     } catch (error) {
@@ -221,6 +255,12 @@ export class PreferencesAPI {
         const apiError = new Error(errorMessage);
         (apiError as Error & { status: number }).status = response.status;
         throw apiError;
+      }
+
+      // Invalidate cache after successful update
+      const userId = this.getUserIdFromToken();
+      if (userId) {
+        this.cache.invalidate(CACHE_KEYS.USER_PREFERENCES(userId));
       }
 
       return true;
@@ -321,18 +361,30 @@ export function useUserPreferences() {
   }, []);
 
   useEffect(() => {
-    // Load preferences on component mount
-    loadPreferences();
+    // Only load preferences once on component mount
+    let hasLoaded = false;
     
-    // Listen for user login events to reload preferences
+    if (!hasLoaded) {
+      loadPreferences();
+      hasLoaded = true;
+    }
+    
+    // Listen for user login events to reload preferences (but debounce this too)
+    let loginTimeout: NodeJS.Timeout;
     const handleUserLogin = (event: CustomEvent) => {
       console.log('User logged in event received, reloading preferences...', event.detail);
-      loadPreferences();
+      
+      // Debounce login-triggered reloads
+      if (loginTimeout) clearTimeout(loginTimeout);
+      loginTimeout = setTimeout(() => {
+        loadPreferences();
+      }, 1000);
     };
 
     // Handle logout - cancel all pending preferences updates
     const handleUserLogout = () => {
       console.log('User logged out - cancelling all preference updates');
+      if (loginTimeout) clearTimeout(loginTimeout);
       debouncer.cancelAll();
       setPreferences(null);
       setLoading(false);
@@ -345,12 +397,13 @@ export function useUserPreferences() {
 
     // Cleanup event listeners
     return () => {
+      if (loginTimeout) clearTimeout(loginTimeout);
       window.removeEventListener('userLoggedIn', handleUserLogin as EventListener);
       window.removeEventListener('userLoggedOut', handleUserLogout as EventListener);
       // Cancel any pending updates when component unmounts
       debouncer.cancelAll();
     };
-  }, [loadPreferences]);
+  }, []); // Remove loadPreferences dependency to prevent re-runs
 
   const updateSidebarSettings = useCallback(async (sidebarSettings: SidebarSettings) => {
     // บันทึกใน localStorage ทันที
