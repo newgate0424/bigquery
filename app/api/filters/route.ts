@@ -7,6 +7,15 @@ import { getUserByUsername } from '@/lib/user';
 
 const keyFilePath = path.resolve(process.cwd(), 'credentials.json');
 
+// Cache untuk filter options (30 minutes TTL)
+let cachedFilterData: {
+  data: any;
+  timestamp: number;
+  ttl: number;
+} | null = null;
+
+const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
 export async function GET(request: Request) {
   try {
     console.log('Fetching filter options...');
@@ -30,6 +39,31 @@ export async function GET(request: Request) {
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
+
+    // Check cache first
+    const now = Date.now();
+    if (cachedFilterData && (now - cachedFilterData.timestamp) < cachedFilterData.ttl) {
+      console.log('📋 Returning cached filter data');
+      
+      // Filter data based on user role
+      if (user.role === 'admin') {
+        return NextResponse.json(cachedFilterData.data);
+      } else {
+        // Filter for non-admin users
+        const filteredData = {
+          ...cachedFilterData.data,
+          adsers: cachedFilterData.data.adsers.filter((adser: string) => 
+            user.adserView?.includes(adser)
+          ),
+          teams: cachedFilterData.data.teams.filter((team: string) => 
+            user.teams?.includes(team)
+          )
+        };
+        return NextResponse.json(filteredData);
+      }
+    }
+
+    console.log('📋 Cache miss - fetching fresh filter data from BigQuery');
     
     const bigquery = new BigQuery({
       keyFilename: keyFilePath,
@@ -115,12 +149,38 @@ export async function GET(request: Request) {
       }
     });
 
-    return NextResponse.json({
+    const filterData = {
       adsers,
       statuses,
       teams,
       teamAdvertiserMapping
-    });
+    };
+
+    // Cache the results
+    cachedFilterData = {
+      data: filterData,
+      timestamp: now,
+      ttl: CACHE_TTL
+    };
+    console.log('📋 Cached filter data for 30 minutes');
+
+    // Return filtered data based on user role
+    if (user.role === 'admin') {
+      return NextResponse.json(filterData);
+    } else {
+      // Filter for non-admin users
+      const filteredData = {
+        adsers: filterData.adsers.filter((adser: string) => 
+          user.adserView?.includes(adser)
+        ),
+        statuses: filterData.statuses,
+        teams: filterData.teams.filter((team: string) => 
+          user.teams?.includes(team)
+        ),
+        teamAdvertiserMapping: filterData.teamAdvertiserMapping
+      };
+      return NextResponse.json(filteredData);
+    }
 
   } catch (error) {
     console.error('Filter API Error:', error);
