@@ -1860,9 +1860,9 @@ export default function DataTable() {
 
   if (error) {
     return (
-      <div className="flex h-full bg-slate-50/40 dark:bg-slate-700/40">
+      <div className="flex h-full bg-slate-50/30 dark:bg-slate-700/30">
         {/* Filter Sidebar - Collapsible */}
-        <div className={`h-full flex-shrink-0 bg-slate-100/40 dark:bg-slate-800/40 border-r border-slate-300/30 dark:border-slate-700/30 overflow-hidden backdrop-blur-sm transition-all duration-300 ${
+        <div className={`h-full flex-shrink-0 bg-slate-100/30 dark:bg-slate-800/30 border-r border-slate-300/20 dark:border-slate-700/20 overflow-hidden backdrop-blur-sm transition-all duration-300 ${
           isFilterVisible ? 'w-80' : 'w-0'
         }`}>
           {isFilterVisible && (
@@ -1934,9 +1934,9 @@ export default function DataTable() {
   }
 
   return (
-    <div className="flex h-full bg-slate-50/40 dark:bg-slate-700/40">
+    <div className="flex h-full bg-slate-50/30 dark:bg-slate-700/30">
       {/* Filter Sidebar - Collapsible with optimized performance */}
-      <div className={`h-full flex-shrink-0 bg-slate-100/40 dark:bg-slate-800/40 border-r border-slate-300/30 dark:border-slate-700/30 overflow-hidden backdrop-blur-sm transition-[width] duration-150 ease-out will-change-[width] ${
+      <div className={`h-full flex-shrink-0 bg-slate-100/30 dark:bg-slate-800/30 border-r border-slate-300/20 dark:border-slate-700/20 overflow-hidden backdrop-blur-sm transition-[width] duration-150 ease-out will-change-[width] ${
         isFilterVisible ? 'w-80' : 'w-0'
       }`}>
         <div className={`w-80 h-full transform transition-transform duration-150 ease-out will-change-transform ${

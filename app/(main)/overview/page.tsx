@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/lib/theme-context';
+import { useUserPreferences } from '@/lib/preferences';
 import dayjs from 'dayjs';
 import 'dayjs/locale/th';
 import localizedFormat from 'dayjs/plugin/localizedFormat';
@@ -593,6 +594,7 @@ const ColorSettingsPopover = memo(({ groupName, teamNames, settings, onSave }: {
 
 export default function OverviewPage() {
   const { effectiveTheme } = useTheme();
+  const { preferences, updateFilterSettings } = useUserPreferences();
   const chartFontSizes = getChartFontSizes();
   const [isClient, setIsClient] = useState(false);
   const [chartData, setChartData] = useState<{ cpm: TransformedChartData[], costPerDeposit: TransformedChartData[], deposits: TransformedChartData[], cover: TransformedChartData[] }>({ cpm: [], costPerDeposit: [], deposits: [], cover: [] });
@@ -723,19 +725,39 @@ export default function OverviewPage() {
     setIsClient(true);
     loadColorSettings(); // โหลดการตั้งค่าสี
 
-    const savedDate = localStorage.getItem('dateRangeFilterBetaV6Table');
-    if (savedDate) {
+    // โหลด date range จาก preferences ก่อน แล้วค่อย fallback เป็น localStorage
+    let dateRangeLoaded = false;
+    
+    if (preferences?.filterSettings?.dateRange) {
       try {
-        const parsed = JSON.parse(savedDate);
-        if (parsed.from && parsed.to) {
-          setTableDateRange({ from: dayjs(parsed.from).toDate(), to: dayjs(parsed.to).toDate() });
+        const { from, to } = preferences.filterSettings.dateRange;
+        if (from && to) {
+          setTableDateRange({ from: new Date(from), to: new Date(to) });
+          console.log('📅 Date range loaded from preferences:', { from, to });
+          dateRangeLoaded = true;
         }
       } catch (e) {
-        console.error('Failed to parse date range from localStorage:', e);
+        console.error('Failed to parse date range from preferences:', e);
+      }
+    }
+
+    // Fallback เป็น localStorage หาก preferences ไม่มีข้อมูล
+    if (!dateRangeLoaded) {
+      const savedDate = localStorage.getItem('dateRangeFilterBetaV6Table');
+      if (savedDate) {
+        try {
+          const parsed = JSON.parse(savedDate);
+          if (parsed.from && parsed.to) {
+            setTableDateRange({ from: dayjs(parsed.from).toDate(), to: dayjs(parsed.to).toDate() });
+            console.log('📅 Date range loaded from localStorage:', parsed);
+          }
+        } catch (e) {
+          console.error('Failed to parse date range from localStorage:', e);
+          setTableDateRange({ from: dayjs().startOf('month').toDate(), to: dayjs().endOf('day').toDate() });
+        }
+      } else {
         setTableDateRange({ from: dayjs().startOf('month').toDate(), to: dayjs().endOf('day').toDate() });
       }
-    } else {
-      setTableDateRange({ from: dayjs().startOf('month').toDate(), to: dayjs().endOf('day').toDate() });
     }
 
     const savedView = localStorage.getItem('graphView');
@@ -756,7 +778,7 @@ export default function OverviewPage() {
     } catch (error) { 
       console.error("Failed to parse expanded groups from localStorage", error); 
     }
-  }, []);
+  }, [preferences?.filterSettings?.dateRange]);
 
   useEffect(() => {
     if (isClient) {
@@ -764,11 +786,24 @@ export default function OverviewPage() {
     }
   }, [graphView, isClient]);
 
+  // Save date range changes
   useEffect(() => {
     if (tableDateRange && isClient) {
+      // บันทึกลง localStorage ทันที (สำหรับ immediate response)
       localStorage.setItem('dateRangeFilterBetaV6Table', JSON.stringify(tableDateRange));
+      
+      // บันทึกลง database ผ่าน preferences system
+      if (updateFilterSettings) {
+        const dateRangeData = {
+          from: tableDateRange.from?.toISOString(),
+          to: tableDateRange.to?.toISOString()
+        };
+        
+        updateFilterSettings({ dateRange: dateRangeData });
+        console.log('📅 Date range saved to preferences:', dateRangeData);
+      }
     }
-  }, [tableDateRange, isClient]);
+  }, [tableDateRange, isClient, updateFilterSettings]);
 
   // Save expanded groups to localStorage
   useEffect(() => { 
@@ -959,18 +994,18 @@ export default function OverviewPage() {
   return (
     <div 
       className={cn(
-        "h-screen p-4 sm:p-6 transition-colors duration-200",
+        "h-screen p-4 sm:p-6 transition-colors duration-200 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-indigo-900",
         effectiveTheme === 'dark' 
-          ? "bg-slate-900 text-slate-100" 
-          : "bg-slate-50 text-slate-900"
+          ? "text-slate-100" 
+          : "text-slate-900"
       )} 
       data-page="overview"
     >
       <Card className={cn(
         "h-full overflow-hidden border-0 shadow-lg transition-colors duration-200",
         effectiveTheme === 'dark'
-          ? "bg-slate-800 shadow-slate-900/50"
-          : "bg-white shadow-slate-200/50"
+          ? "bg-slate-800/30 backdrop-blur-md shadow-slate-900/50"
+          : "bg-white/30 backdrop-blur-md shadow-slate-200/50"
       )}>
         <div className="h-full overflow-y-auto p-6">
           <div className="space-y-6">
@@ -979,7 +1014,7 @@ export default function OverviewPage() {
               <h1 className={cn(
                 "text-2xl font-bold tracking-tight transition-colors duration-200",
                 effectiveTheme === 'dark' ? "text-slate-100" : "text-slate-900"
-              )}>ภาพรวมรายทีม</h1>
+              )}>ภาพรวม Overview</h1>
               <RealTimeStatus lastUpdate={lastUpdate} />
             </div>
 
@@ -1052,7 +1087,7 @@ export default function OverviewPage() {
           if (!isClient && teamsInGroup.length === 0) { return <Skeleton key={groupName} className="h-96 w-full" />;}
           if (teamsInGroup.length === 0) {
             return (
-              <Card key={groupName} className="p-4 md:p-6 relative">
+              <Card key={groupName} className="p-4 md:p-6 relative bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
                 <h2 className="text-2xl font-bold mb-4">{groupName}</h2>
                 <p className="text-muted-foreground">ไม่มีข้อมูลสำหรับกลุ่มนี้ในช่วงวันที่ที่เลือก</p>
               </Card>
@@ -1062,9 +1097,9 @@ export default function OverviewPage() {
           const groupMaxValues = groupYAxisMax[groupName as keyof typeof groupYAxisMax];
 
           return (
-            <Card key={groupName} className="p-0">
-              <div className="flex flex-row items-center justify-between mb-4 px-4 pt-4 pb-2">
-                <h2 className="text-2xl font-bold">{groupName}</h2>
+            <Card key={groupName} className="p-0 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
+              <CardHeader className="flex flex-row items-center justify-between px-4 pt-4 pb-2">
+                <CardTitle className="text-xl font-bold">{groupName}</CardTitle>
                 <div className="flex items-center gap-2">
                   {groupName === 'Lotto' && <ExchangeRateSmall rate={exchangeRate} isLoading={isRateLoading} isFallback={isRateFallback} />}
                   <ColorSettingsPopover groupName={groupName} teamNames={teamNames} settings={colorSettings} onSave={setColorSettings} />
@@ -1078,31 +1113,31 @@ export default function OverviewPage() {
                     {showBreakdown ? 'ซ่อน' : 'ละเอียด'}
                   </Button>
                 </div>
-              </div>
-
-              <div className="space-y-6 px-0 pb-0">
+              </CardHeader>
+              <CardContent className="px-0 pb-0">
                 <div className="overflow-x-auto">
-                  <Table>
+                  <Table className="text-sm">
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-[140px]">ทีม</TableHead>
-                        <TableHead>ยอดทัก / แผน</TableHead>
-                        <TableHead>ใช้จ่าย / แผน</TableHead>
-                        <TableHead>ยอดทักสุทธิ / เสีย</TableHead>
-                        <TableHead className="text-right min-w-[80px]">CPM</TableHead>
-                        <TableHead className="text-right min-w-[70px]">ยอดเติม</TableHead>
-                        <TableHead className="text-right min-w-[80px]">ทุน/เติม</TableHead>
-                        <TableHead className="text-right min-w-[120px]">ยอดเล่นใหม่</TableHead>
-                        <TableHead className="text-right min-w-[90px]">1$ / Cover</TableHead>
+                        <TableHead className="text-center w-[150px]">ทีม</TableHead>
+                        <TableHead className="text-center w-[120px]">ยอดทัก/แผน</TableHead>
+                        <TableHead className="text-center w-[120px]">ใช้จ่าย/แผน</TableHead>
+                        <TableHead className="text-center w-[90px]">ยอดทักสุทธิ</TableHead>
+                        <TableHead className="text-center w-[80px]">ยอดเสีย</TableHead>
+                        <TableHead className="text-center w-[80px]">CPM</TableHead>
+                        <TableHead className="text-center w-[80px]">ยอดเติม</TableHead>
+                        <TableHead className="text-center w-[90px]">ทุน/เติม</TableHead>
+                        <TableHead className="text-right w-[120px]">ยอดเล่นใหม่</TableHead>
+                        <TableHead className="text-right w-[90px] pr-4">1$/Cover</TableHead>
                         {showBreakdown && <>
-                          <TableHead className="text-center min-w-[70px]">ทักเงียบ</TableHead>
-                          <TableHead className="text-center min-w-[70px]">ทักซ้ำ</TableHead>
-                          <TableHead className="text-center min-w-[70px]">มียูส</TableHead>
-                          <TableHead className="text-center min-w-[70px]">ก่อกวน</TableHead>
-                          <TableHead className="text-center min-w-[70px]">บล็อก</TableHead>
-                          <TableHead className="text-center min-w-[70px]">ต่ำกว่า18</TableHead>
-                          <TableHead className="text-center min-w-[70px]">อายุเกิน50</TableHead>
-                          <TableHead className="text-center min-w-[70px]">ต่างชาติ</TableHead>
+                          <TableHead className="text-center w-[70px]">เงียบ</TableHead>
+                          <TableHead className="text-center w-[70px]">ซ้ำ</TableHead>
+                          <TableHead className="text-center w-[70px]">มียูส</TableHead>
+                          <TableHead className="text-center w-[70px]">ก่อกวน</TableHead>
+                          <TableHead className="text-center w-[70px]">บล็อก</TableHead>
+                          <TableHead className="text-center w-[70px]">เด็ก</TableHead>
+                          <TableHead className="text-center w-[70px]">อายุเกิน50</TableHead>
+                          <TableHead className="text-center w-[70px] pr-4">ต่างชาติ</TableHead>
                         </>}
                       </TableRow>
                     </TableHeader>
@@ -1129,23 +1164,24 @@ export default function OverviewPage() {
                                   <span className="font-semibold">{team.team_name}</span>
                                 </div>
                               </TableCell>
-                              <TableCell><div className="text-sm"><ProgressCell value={team.total_inquiries ?? 0} total={team.planned_inquiries ?? 0} /></div></TableCell>
-                              <TableCell><div className="text-sm"><ProgressCell value={team.actual_spend ?? 0} total={team.planned_daily_spend ?? 0} isCurrency /></div></TableCell>
-                              <TableCell><div className="text-sm"><StackedProgressCell net={team.net_inquiries ?? 0} wasted={team.wasted_inquiries ?? 0} total={team.total_inquiries ?? 0} /></div></TableCell>
-                              <TableCell className="text-right"><div className="text-sm"><span style={getCellStyle(team.team_name, 'cpm_cost_per_inquiry', team.cpm_cost_per_inquiry ?? 0)}><FinancialMetric value={team.cpm_cost_per_inquiry ?? 0} prefix="$" /></span></div></TableCell>
-                              <TableCell className="text-right font-semibold"><div className="text-sm number-transition"><span style={getCellStyle(team.team_name, 'deposits_count', team.deposits_count ?? 0)}>{formatNumber(team.deposits_count ?? 0)}</span></div></TableCell>
-                              <TableCell className="text-right"><div className="text-sm"><span style={getCellStyle(team.team_name, 'cost_per_deposit', team.cost_per_deposit ?? 0)}><FinancialMetric value={team.cost_per_deposit ?? 0} prefix="$" /></span></div></TableCell>
-                              <TableCell className="text-right min-w-[120px] pr-2"><div className="text-sm"><span style={getCellStyle(team.team_name, 'new_player_value_thb', team.new_player_value_thb ?? 0)}><FinancialMetric value={team.new_player_value_thb ?? 0} prefix="฿" /></span></div></TableCell>
-                              <TableCell className="text-right"><div className="text-sm"><span style={getCellStyle(team.team_name, 'one_dollar_per_cover', team.one_dollar_per_cover ?? 0)}><FinancialMetric value={team.one_dollar_per_cover ?? 0} prefix="$" /></span></div></TableCell>
+                              <TableCell className="text-center"><div className="text-sm flex justify-center"><ProgressCell value={team.total_inquiries ?? 0} total={team.planned_inquiries ?? 0} /></div></TableCell>
+                              <TableCell className="text-center"><div className="text-sm flex justify-center"><ProgressCell value={team.actual_spend ?? 0} total={team.planned_daily_spend ?? 0} isCurrency /></div></TableCell>
+                              <TableCell className="text-center"><div className="text-sm"><span style={getCellStyle(team.team_name, 'net_inquiries', team.net_inquiries ?? 0, team.total_inquiries ?? 0)}><BreakdownCell value={team.net_inquiries ?? 0} total={team.total_inquiries ?? 0} /></span></div></TableCell>
+                              <TableCell className="text-center"><div className="text-sm"><span style={getCellStyle(team.team_name, 'wasted_inquiries', team.wasted_inquiries ?? 0, team.total_inquiries ?? 0)}><BreakdownCell value={team.wasted_inquiries ?? 0} total={team.total_inquiries ?? 0} /></span></div></TableCell>
+                              <TableCell className="text-center"><div className="text-sm"><span style={getCellStyle(team.team_name, 'cpm_cost_per_inquiry', team.cpm_cost_per_inquiry ?? 0)}><FinancialMetric value={team.cpm_cost_per_inquiry ?? 0} prefix="$" /></span></div></TableCell>
+                              <TableCell className="text-center font-semibold"><div className="text-sm number-transition"><span style={getCellStyle(team.team_name, 'deposits_count', team.deposits_count ?? 0)}>{formatNumber(team.deposits_count ?? 0)}</span></div></TableCell>
+                              <TableCell className="text-center"><div className="text-sm"><span style={getCellStyle(team.team_name, 'cost_per_deposit', team.cost_per_deposit ?? 0)}><FinancialMetric value={team.cost_per_deposit ?? 0} prefix="$" /></span></div></TableCell>
+                              <TableCell className="text-right pr-2"><div className="text-sm"><span style={getCellStyle(team.team_name, 'new_player_value_thb', team.new_player_value_thb ?? 0)}><FinancialMetric value={team.new_player_value_thb ?? 0} prefix="฿" /></span></div></TableCell>
+                              <TableCell className="text-right pr-4"><div className="text-sm"><span style={getCellStyle(team.team_name, 'one_dollar_per_cover', team.one_dollar_per_cover ?? 0)}><FinancialMetric value={team.one_dollar_per_cover ?? 0} prefix="$" /></span></div></TableCell>
                               {showBreakdown && <>
-                                <TableCell><div className="text-sm"><span style={getCellStyle(team.team_name, 'silent_inquiries', team.silent_inquiries ?? 0, team.total_inquiries ?? 0)}><BreakdownCell value={team.silent_inquiries ?? 0} total={team.total_inquiries ?? 0} /></span></div></TableCell>
-                                <TableCell><div className="text-sm"><span style={getCellStyle(team.team_name, 'repeat_inquiries', team.repeat_inquiries ?? 0, team.total_inquiries ?? 0)}><BreakdownCell value={team.repeat_inquiries ?? 0} total={team.total_inquiries ?? 0} /></span></div></TableCell>
-                                <TableCell><div className="text-sm"><span style={getCellStyle(team.team_name, 'existing_user_inquiries', team.existing_user_inquiries ?? 0, team.total_inquiries ?? 0)}><BreakdownCell value={team.existing_user_inquiries ?? 0} total={team.total_inquiries ?? 0} /></span></div></TableCell>
-                                <TableCell><div className="text-sm"><span style={getCellStyle(team.team_name, 'spam_inquiries', team.spam_inquiries ?? 0, team.total_inquiries ?? 0)}><BreakdownCell value={team.spam_inquiries ?? 0} total={team.total_inquiries ?? 0} /></span></div></TableCell>
-                                <TableCell><div className="text-sm"><span style={getCellStyle(team.team_name, 'blocked_inquiries', team.blocked_inquiries ?? 0, team.total_inquiries ?? 0)}><BreakdownCell value={team.blocked_inquiries ?? 0} total={team.total_inquiries ?? 0} /></span></div></TableCell>
-                                <TableCell><div className="text-sm"><span style={getCellStyle(team.team_name, 'under_18_inquiries', team.under_18_inquiries ?? 0, team.total_inquiries ?? 0)}><BreakdownCell value={team.under_18_inquiries ?? 0} total={team.total_inquiries ?? 0} /></span></div></TableCell>
-                                <TableCell><div className="text-sm"><span style={getCellStyle(team.team_name, 'over_50_inquiries', team.over_50_inquiries ?? 0, team.total_inquiries ?? 0)}><BreakdownCell value={team.over_50_inquiries ?? 0} total={team.total_inquiries ?? 0} /></span></div></TableCell>
-                                <TableCell><div className="text-sm"><span style={getCellStyle(team.team_name, 'foreigner_inquiries', team.foreigner_inquiries ?? 0, team.total_inquiries ?? 0)}><BreakdownCell value={team.foreigner_inquiries ?? 0} total={team.total_inquiries ?? 0} /></span></div></TableCell>
+                                <TableCell className="text-center"><div className="text-sm"><span style={getCellStyle(team.team_name, 'silent_inquiries', team.silent_inquiries ?? 0, team.total_inquiries ?? 0)}><BreakdownCell value={team.silent_inquiries ?? 0} total={team.total_inquiries ?? 0} /></span></div></TableCell>
+                                <TableCell className="text-center"><div className="text-sm"><span style={getCellStyle(team.team_name, 'repeat_inquiries', team.repeat_inquiries ?? 0, team.total_inquiries ?? 0)}><BreakdownCell value={team.repeat_inquiries ?? 0} total={team.total_inquiries ?? 0} /></span></div></TableCell>
+                                <TableCell className="text-center"><div className="text-sm"><span style={getCellStyle(team.team_name, 'existing_user_inquiries', team.existing_user_inquiries ?? 0, team.total_inquiries ?? 0)}><BreakdownCell value={team.existing_user_inquiries ?? 0} total={team.total_inquiries ?? 0} /></span></div></TableCell>
+                                <TableCell className="text-center"><div className="text-sm"><span style={getCellStyle(team.team_name, 'spam_inquiries', team.spam_inquiries ?? 0, team.total_inquiries ?? 0)}><BreakdownCell value={team.spam_inquiries ?? 0} total={team.total_inquiries ?? 0} /></span></div></TableCell>
+                                <TableCell className="text-center"><div className="text-sm"><span style={getCellStyle(team.team_name, 'blocked_inquiries', team.blocked_inquiries ?? 0, team.total_inquiries ?? 0)}><BreakdownCell value={team.blocked_inquiries ?? 0} total={team.total_inquiries ?? 0} /></span></div></TableCell>
+                                <TableCell className="text-center"><div className="text-sm"><span style={getCellStyle(team.team_name, 'under_18_inquiries', team.under_18_inquiries ?? 0, team.total_inquiries ?? 0)}><BreakdownCell value={team.under_18_inquiries ?? 0} total={team.total_inquiries ?? 0} /></span></div></TableCell>
+                                <TableCell className="text-center"><div className="text-sm"><span style={getCellStyle(team.team_name, 'over_50_inquiries', team.over_50_inquiries ?? 0, team.total_inquiries ?? 0)}><BreakdownCell value={team.over_50_inquiries ?? 0} total={team.total_inquiries ?? 0} /></span></div></TableCell>
+                                <TableCell className="text-center pr-4"><div className="text-sm"><span style={getCellStyle(team.team_name, 'foreigner_inquiries', team.foreigner_inquiries ?? 0, team.total_inquiries ?? 0)}><BreakdownCell value={team.foreigner_inquiries ?? 0} total={team.total_inquiries ?? 0} /></span></div></TableCell>
                               </>}
                             </TableRow>
                           );
@@ -1173,7 +1209,7 @@ export default function OverviewPage() {
                     </CollapsibleTrigger>
                   </div>
                 </Collapsible>
-              </div>
+              </CardContent>
             </Card>
           );
         })}
