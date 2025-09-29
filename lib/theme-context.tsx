@@ -211,13 +211,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         root.style.setProperty('--background-gradient', colors.background);
         root.style.setProperty('--color-background', 'transparent');
         
-        // Apply to specific page containers
-        const pageContainers = document.querySelectorAll('[data-page]');
-        pageContainers.forEach(container => {
-          (container as HTMLElement).style.background = colors.background;
-        });
-        
-        console.log('Applied gradient background to pages:', colors.background);
+        console.log('Applied gradient background to body:', colors.background);
       } else if (colors.background.startsWith('#')) {
         // For solid colors, update CSS variables and all backgrounds
         const hslBackground = hexToHsl(colors.background);
@@ -226,28 +220,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         root.style.setProperty('--background-gradient', 'none');
         document.body.style.background = colors.background;
         
-        // Apply to specific page containers
-        const pageContainers = document.querySelectorAll('[data-page]');
-        pageContainers.forEach(container => {
-          (container as HTMLElement).style.background = colors.background;
-        });
-        
-        console.log('Applied solid background to pages:', colors.background);
+        console.log('Applied solid background to body:', colors.background);
       } else {
-        // Default fallback - apply to all containers
+        // Default fallback - apply to body
         const defaultGradient = effectiveTheme === 'dark' 
           ? 'linear-gradient(135deg, #1e293b, #334155, #475569)'
           : 'linear-gradient(135deg, #f8fafc, #e2e8f0, #cbd5e1)';
         document.body.style.background = defaultGradient;
         root.style.setProperty('--background-gradient', defaultGradient);
         
-        // Apply to specific page containers
-        const pageContainers = document.querySelectorAll('[data-page]');
-        pageContainers.forEach(container => {
-          (container as HTMLElement).style.background = defaultGradient;
-        });
-        
-        console.log('Applied default gradient to pages for', effectiveTheme, 'theme');
+        console.log('Applied default gradient to body for', effectiveTheme, 'theme');
       }
       
       // Apply fonts to document
@@ -267,7 +249,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', applyTheme);
     } else {
-      // Use setTimeout to ensure all components have mounted
+      // Use setTimeout to ensure all components have mounted and navigation is complete
       setTimeout(applyTheme, 100);
     }
     
@@ -278,6 +260,59 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     // Only save to database on user-initiated changes, not on initial load
     // This prevents excessive API calls during component initialization
   }, [mode, colors, fonts, effectiveTheme, isLoaded])
+
+  // Additional effect to handle page navigation - re-apply background when page changes
+  useEffect(() => {
+    if (!isLoaded || !colors.background) return;
+
+    const applyBackgroundToPages = () => {
+      // Apply to specific page containers with data-page attribute
+      const pageContainers = document.querySelectorAll('[data-page]');
+      pageContainers.forEach(container => {
+        (container as HTMLElement).style.background = colors.background;
+      });
+      
+      // Also ensure body background is applied
+      document.body.style.background = colors.background;
+      
+      console.log('Re-applied background to', pageContainers.length, 'page containers:', colors.background);
+    };
+
+    // Apply immediately
+    applyBackgroundToPages();
+
+    // Set up MutationObserver to detect when new pages are loaded
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'childList') {
+          // Check if new elements with data-page attribute were added
+          const addedNodes = Array.from(mutation.addedNodes).filter(node => 
+            node.nodeType === Node.ELEMENT_NODE
+          ) as Element[];
+          
+          const hasNewPageContainer = addedNodes.some(node => 
+            node.hasAttribute?.('data-page') || 
+            node.querySelector?.('[data-page]')
+          );
+          
+          if (hasNewPageContainer) {
+            // Small delay to ensure the page has fully rendered
+            setTimeout(applyBackgroundToPages, 50);
+          }
+        }
+      });
+    });
+
+    // Observe changes to the document body
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [colors.background, isLoaded])
 
   const handleSetMode = (newMode: ThemeMode) => {
     setMode(newMode);
@@ -305,14 +340,18 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     // Immediately save to localStorage
     localStorage.setItem('theme-colors', JSON.stringify(updatedColors));
     
-    // Immediately apply background to page containers
+    // Immediately apply background to body and all page containers
     if (updatedColors.background) {
+      // Apply to body
+      document.body.style.background = updatedColors.background;
+      
+      // Apply to all page containers
       const pageContainers = document.querySelectorAll('[data-page]');
       pageContainers.forEach(container => {
         (container as HTMLElement).style.background = updatedColors.background;
       });
-      document.body.style.background = updatedColors.background;
-      console.log('Immediately applied background to pages:', updatedColors.background);
+      
+      console.log('Immediately applied background to body and', pageContainers.length, 'page containers:', updatedColors.background);
     }
     
     // Save to database
