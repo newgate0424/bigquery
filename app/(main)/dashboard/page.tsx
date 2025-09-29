@@ -29,10 +29,10 @@ export default function DashboardPage() {
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className={cn(
-            "rounded-lg shadow p-6 transition-colors duration-200",
+            "rounded-lg shadow p-6 transition-colors duration-200 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50",
             effectiveTheme === 'dark'
-              ? "bg-slate-800 shadow-slate-900/50"
-              : "bg-white shadow-slate-200/50"
+              ? "bg-slate-800/80 shadow-slate-900/50"
+              : "bg-white/80 shadow-slate-200/50"
           )}>
             <h2 className={cn(
               "text-xl font-semibold mb-2 transition-colors duration-200",
@@ -45,10 +45,10 @@ export default function DashboardPage() {
             <a href="/monitor" className="inline-block bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">ไปยัง Monitor</a>
           </div>
           <div className={cn(
-            "rounded-lg shadow p-6 transition-colors duration-200",
+            "rounded-lg shadow p-6 transition-colors duration-200 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50",
             effectiveTheme === 'dark'
-              ? "bg-slate-800 shadow-slate-900/50"
-              : "bg-white shadow-slate-200/50"
+              ? "bg-slate-800/80 shadow-slate-900/50"
+              : "bg-white/80 shadow-slate-200/50"
           )}>
             <h2 className={cn(
               "text-xl font-semibold mb-2 transition-colors duration-200",

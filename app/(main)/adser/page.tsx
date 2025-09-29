@@ -644,18 +644,18 @@ export default function AdserPage() {
     return (
         <div 
             className={cn(
-                "h-screen p-4 sm:p-6 transition-colors duration-200",
+                "h-screen p-4 sm:p-6 transition-colors duration-200 bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-slate-900 dark:via-slate-800 dark:to-emerald-900",
                 effectiveTheme === 'dark' 
-                    ? "bg-slate-900 text-slate-100" 
-                    : "bg-slate-50 text-slate-900"
+                    ? "text-slate-100" 
+                    : "text-slate-900"
             )}
             data-page="adser"
         >
             <Card className={cn(
                 "h-full overflow-hidden border-0 shadow-lg transition-colors duration-200",
                 effectiveTheme === 'dark'
-                    ? "bg-slate-800 shadow-slate-900/50"
-                    : "bg-white shadow-slate-200/50"
+                    ? "bg-slate-800/30 backdrop-blur-md shadow-slate-900/50"
+                    : "bg-white/30 backdrop-blur-md shadow-slate-200/50"
             )}>
                 <div className="h-full overflow-y-auto p-6">
                     <div className="space-y-6">
@@ -694,9 +694,9 @@ export default function AdserPage() {
                 {Object.entries(adserTeamGroups).map(([groupName, teamNames]) => {
                     const teamsInGroup = tableData ? tableData.filter(team => teamNames.includes(team.team_name)) : [];
                     if (loadingTable && !isClient) return <Skeleton key={groupName} className="h-96 w-full" />;
-                    if (!teamsInGroup.length) return <Card key={groupName} className="p-6"><h2 className="text-2xl font-bold mb-4">{groupName}</h2><p className="text-muted-foreground">ไม่มีข้อมูลสำหรับกลุ่มนี้</p></Card>;
+                    if (!teamsInGroup.length) return <Card key={groupName} className="p-6 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50"><h2 className="text-2xl font-bold mb-4">{groupName}</h2><p className="text-muted-foreground">ไม่มีข้อมูลสำหรับกลุ่มนี้</p></Card>;
                     return (
-                        <Card key={groupName} className="p-0">
+                        <Card key={groupName} className="p-0 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
                             <CardHeader className="flex flex-row items-center justify-between px-4 pt-4 pb-2">
                                 <CardTitle className="text-xl font-bold">{groupName}</CardTitle>
                                 <div className="flex items-center gap-2">
