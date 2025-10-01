@@ -52,38 +52,7 @@ interface DataRow {
   under_18?: number;
   over_50?: number;
   foreigner?: number;
-  // Daily deposit fields (วันที่ 1-31)
-  day1?: number;
-  day2?: number;
-  day3?: number;
-  day4?: number;
-  day5?: number;
-  day6?: number;
-  day7?: number;
-  day8?: number;
-  day9?: number;
-  day10?: number;
-  day11?: number;
-  day12?: number;
-  day13?: number;
-  day14?: number;
-  day15?: number;
-  day16?: number;
-  day17?: number;
-  day18?: number;
-  day19?: number;
-  day20?: number;
-  day21?: number;
-  day22?: number;
-  day23?: number;
-  day24?: number;
-  day25?: number;
-  day26?: number;
-  day27?: number;
-  day28?: number;
-  day29?: number;
-  day30?: number;
-  day31?: number;
+
   [key: string]: string | number | undefined;
 }
 
@@ -154,6 +123,34 @@ export default function DataTable() {
     } else {
       console.log('DataTable - No user found in localStorage');
     }
+
+    // Listen for login events to reset component state
+    const handleUserLogin = () => {
+      console.log('🔄 DataTable detected user login, reloading user data...');
+      
+      // Reset initialization state to allow preferences to reload
+      setIsInitialized(false);
+      
+      // Reload user data
+      const newUserStr = localStorage.getItem('user');
+      if (newUserStr) {
+        try {
+          const newUserData = JSON.parse(newUserStr);
+          console.log('DataTable - Reloaded user after login:', newUserData);
+          setCurrentUser(newUserData);
+        } catch (err) {
+          console.error('Error parsing new user data:', err);
+        }
+      }
+    };
+
+    // Add event listener
+    window.addEventListener('userLoggedIn', handleUserLogin);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('userLoggedIn', handleUserLogin);
+    };
   }, []);
 
   // Default visible columns - show only important ones initially (date is always shown)
@@ -198,9 +195,12 @@ export default function DataTable() {
     under18: true,
     over50: true,
     foreigner: true,
-    // Daily deposit columns (day 1-31) - เปิด day1-day7 เพื่อทดสอบ
+
+    // Daily columns - only show first week by default
     day1: true, day2: true, day3: true, day4: true, day5: true,
-    day6: true, day7: true, day8: false, day9: false, day10: false,
+    day6: true, day7: true, 
+    // Hide the rest by default to reduce clutter
+    day8: false, day9: false, day10: false,
     day11: false, day12: false, day13: false, day14: false, day15: false,
     day16: false, day17: false, day18: false, day19: false, day20: false,
     day21: false, day22: false, day23: false, day24: false, day25: false,
@@ -251,14 +251,31 @@ export default function DataTable() {
     return null;
   };
 
-  // Save filters to localStorage (แยก key ตาม mode)
+  // Save filters to localStorage and database
   const saveFilters = useCallback((filters: Record<string, unknown>) => {
     if (typeof window === 'undefined') return;
     console.log('💾 saveFilters called with:', filters);
     try {
       const filterKey = getFilterKey();
+      // Save to localStorage for immediate response
       localStorage.setItem(filterKey, JSON.stringify(filters));
       console.log('✅ Filters saved to localStorage with key:', filterKey);
+      
+      // Save to database via preferences system
+      if (updateFilterSettings) {
+        const filterSettings = {
+          selectedTeam: filters.selectedTeam as string || '',
+          selectedAdvertiser: filters.selectedAdser as string || '',
+          selectedStatus: filters.selectedStatus as string || '',
+          pageDisplayMode: filters.pageDisplayMode as string || '',
+          searchText: filters.searchText as string || ''
+        };
+        
+        updateFilterSettings(filterSettings);
+        console.log('✅ Filter settings sent to database via preferences:', filterSettings);
+      } else {
+        console.warn('⚠️ updateFilterSettings function not available');
+      }
       
       // Verify it was saved
       const verification = localStorage.getItem(filterKey);
@@ -266,7 +283,7 @@ export default function DataTable() {
     } catch (error) {
       console.error('❌ Error saving filters:', error);
     }
-  }, []);
+  }, [updateFilterSettings]);
 
   // Save and load column visibility using preferences system
   const saveColumnVisibility = useCallback((columns: ColumnVisibility) => {
@@ -311,81 +328,135 @@ export default function DataTable() {
   // Color configuration state - will be loaded from preferences  
   const [colorConfig, setColorConfig] = useState<ColorConfig>({});
 
-  // TEMPORARILY DISABLE PREFERENCES LOADING - USE ONLY DEFAULTS
+  // Load preferences from database or localStorage
   useEffect(() => {
-    console.log('🚀 FORCING default values including daily columns...');
+    console.log('🚀 Loading preferences and column visibility...');
     
-    // Only clear specific localStorage items, not ALL to avoid auth issues
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('monitor-column-visibility');
-      localStorage.removeItem('bigquery-dashboard-filters');
-      console.log('🗑️ Cleared specific localStorage items');
+    // Check if preferences are available
+    if (!preferencesLoading && preferences) {
+      console.log('📋 Loading from database preferences:', preferences);
+      
+      // Load column visibility from preferences
+      if (preferences.columnVisibility) {
+        console.log('�️ Setting column visibility from preferences:', preferences.columnVisibility);
+        setVisibleColumns(preferences.columnVisibility);
+      } else {
+        console.log('� No column visibility in preferences, using defaults');
+        setVisibleColumns(getDefaultVisibleColumns());
+      }
+      
+      // Load color configuration from preferences
+      if (preferences.colorConfiguration) {
+        console.log('🎨 Setting color config from preferences:', preferences.colorConfiguration);
+        setColorConfig(preferences.colorConfiguration);
+      } else {
+        console.log('🎨 No color config in preferences, using defaults');
+        setColorConfig(getDefaultColorConfig());
+      }
+      
+      setIsInitialized(true);
+    } else if (!preferencesLoading && !preferences) {
+      console.log('📦 No database preferences, checking localStorage...');
+      
+      // Fallback to localStorage
+      try {
+        const savedColumnVisibility = localStorage.getItem('monitor-column-visibility');
+        if (savedColumnVisibility) {
+          const parsed = JSON.parse(savedColumnVisibility);
+          console.log('📦 Loading column visibility from localStorage:', parsed);
+          setVisibleColumns(parsed);
+        } else {
+          console.log('📦 No localStorage column visibility, using defaults');
+          setVisibleColumns(getDefaultVisibleColumns());
+        }
+      } catch (error) {
+        console.error('❌ Error loading from localStorage:', error);
+        setVisibleColumns(getDefaultVisibleColumns());
+      }
+      
+      setColorConfig(getDefaultColorConfig());
+      setIsInitialized(true);
+    }
+  }, [preferences, preferencesLoading]); // Depend on preferences loading
+
+  // Load saved filters from preferences or localStorage
+  useEffect(() => {
+    console.log('🔍 Loading filter settings...');
+    
+    // Only load filters after preferences are loaded and component is initialized
+    if (!isInitialized || preferencesLoading) {
+      console.log('⏳ Waiting for initialization or preferences loading...');
+      return;
     }
     
-    const defaultColumns = getDefaultVisibleColumns();
-    console.log('📊 Daily columns in defaults:', Object.keys(defaultColumns).filter(key => key.startsWith('day')));
-    console.log('📊 All default columns:', defaultColumns);
+    let filtersLoaded = false;
     
-    // Force set defaults
-    setVisibleColumns(defaultColumns);
-    setColorConfig(getDefaultColorConfig());
-    setIsInitialized(true);
-    
-    console.log('✅ FORCED visibleColumns state:', defaultColumns);
-    const dailyVisible = Object.entries(defaultColumns).filter(([key, value]) => key.startsWith('day') && value);
-    console.log('✅ Daily columns that should be visible:', dailyVisible);
-    console.log(`✅ Found ${dailyVisible.length} daily columns: ${dailyVisible.map(([k]) => k).join(', ')}`);
-  }, []); // Empty deps to run only once
-
-  // Load saved filters after mount
-  useEffect(() => {
-    const savedFilters = loadSavedFilters();
-    if (savedFilters) {
-      console.log('Loading saved filters:', savedFilters);
-      if (savedFilters.dateRange) {
-        setDateRange(savedFilters.dateRange);
+    // Try to load from database preferences first
+    if (preferences?.filterSettings) {
+      const filterSettings = preferences.filterSettings;
+      console.log('📋 Loading filter settings from database:', filterSettings);
+      
+      if (filterSettings.searchText) {
+        setSearchText(filterSettings.searchText);
+        filtersLoaded = true;
       }
-      if (savedFilters.selectedAdser) {
-        setSelectedAdser(savedFilters.selectedAdser);
+      if (filterSettings.selectedTeam) {
+        setSelectedTeam(filterSettings.selectedTeam);
+        filtersLoaded = true;
       }
-      if (savedFilters.selectedStatus) {
-        setSelectedStatus(savedFilters.selectedStatus);
+      if (filterSettings.selectedAdvertiser) {
+        setSelectedAdser(filterSettings.selectedAdvertiser);
+        filtersLoaded = true;
       }
-      if (savedFilters.selectedTeam) {
-        setSelectedTeam(savedFilters.selectedTeam);
+      if (filterSettings.pageDisplayMode) {
+        setPageDisplayMode(filterSettings.pageDisplayMode);
+        filtersLoaded = true;
       }
-      if (savedFilters.searchText) {
-        setSearchText(savedFilters.searchText);
+      if (filterSettings.selectedStatus) {
+        setSelectedStatus(filterSettings.selectedStatus);
+        filtersLoaded = true;
       }
-      if (savedFilters.pageDisplayMode) {
-        setPageDisplayMode(savedFilters.pageDisplayMode);
-      }
-      if (savedFilters.itemsPerPage) {
-        setItemsPerPage(savedFilters.itemsPerPage);
-      }
-
-      // Immediately sync debouncedFilters with loaded filters to prevent initial fetch with default values
-      setDebouncedFilters({
-        dateRange: savedFilters.dateRange,
-        selectedAdser: savedFilters.selectedAdser || 'all',
-        selectedStatus: savedFilters.selectedStatus || 'all',
-        selectedTeam: savedFilters.selectedTeam || '',
-        searchText: savedFilters.searchText || ''
-      });
-    } else {
-      // If no saved filters, still sync debouncedFilters with current defaults
-      setDebouncedFilters({
-        dateRange,
-        selectedAdser,
-        selectedStatus,
-        selectedTeam,
-        searchText
-      });
     }
     
-    // Mark as initialized so fetchData can start working
-    setIsInitialized(true);
-  }, []); // Empty dependency array to run once after mount
+    // Fallback to localStorage if no database preferences
+    if (!filtersLoaded) {
+      console.log('📦 No filter settings in database, checking localStorage...');
+      const savedFilters = loadSavedFilters();
+      if (savedFilters) {
+        console.log('📦 Loading filter settings from localStorage:', savedFilters);
+        if (savedFilters.dateRange) {
+          setDateRange(savedFilters.dateRange);
+        }
+        if (savedFilters.selectedAdser) {
+          setSelectedAdser(savedFilters.selectedAdser);
+        }
+        if (savedFilters.selectedStatus) {
+          setSelectedStatus(savedFilters.selectedStatus);
+        }
+        if (savedFilters.selectedTeam) {
+          setSelectedTeam(savedFilters.selectedTeam);
+        }
+        if (savedFilters.searchText) {
+          setSearchText(savedFilters.searchText);
+        }
+        if (savedFilters.pageDisplayMode) {
+          setPageDisplayMode(savedFilters.pageDisplayMode);
+        }
+        if (savedFilters.itemsPerPage) {
+          setItemsPerPage(savedFilters.itemsPerPage);
+        }
+      }
+    }
+    
+    // Sync debouncedFilters with current filter values
+    setDebouncedFilters({
+      dateRange,
+      selectedAdser,
+      selectedStatus,
+      selectedTeam,
+      searchText
+    });
+  }, [isInitialized, preferences, preferencesLoading]); // Load when initialized and preferences are ready
 
   // Load saved sort settings from localStorage
   useEffect(() => {
@@ -2033,13 +2104,9 @@ export default function DataTable() {
         {/* Main Container - Single table with daily deposits extension */}
         {!loading && (
           <div className="flex-1 bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col m-3 min-h-0 max-h-[calc(100vh-140px)]">
-            
-            <div className="p-3 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
-              <h3 className="text-lg font-medium text-slate-800 dark:text-slate-200">ตารางข้อมูลและเติมรายวัน</h3>
-            </div>
-            
-            <div className="flex-1 overflow-x-auto overflow-y-auto min-h-0 max-h-[calc(100vh-160px)]" style={{ 
-              scrollbarWidth: 'thin', 
+
+            <div className="flex-1 overflow-x-auto overflow-y-auto min-h-0 max-h-[calc(100vh-160px)]" style={{
+              scrollbarWidth: 'thin',
               scrollbarColor: '#64748b #e2e8f0',
               msOverflowStyle: 'auto'
             }}>
@@ -2505,379 +2572,6 @@ export default function DataTable() {
                     </ResizableHeader>
                   )}
                   
-                  {/* Daily Deposit Columns (Day 1-31) - ข้างขวาคอลัมน์ต่างชาติ */}
-                  {visibleColumns.day1 && (
-                    <ResizableHeader 
-                      sortKey="day1" 
-                      className="text-center text-xs"
-                      width={columnWidths["day1"] || 45}
-                      onWidthChange={(width) => handleColumnWidthChange("day1", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      1
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day2 && (
-                    <ResizableHeader 
-                      sortKey="day2" 
-                      className="text-center text-xs"
-                      width={columnWidths["day2"] || 45}
-                      onWidthChange={(width) => handleColumnWidthChange("day2", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      2
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day3 && (
-                    <ResizableHeader 
-                      sortKey="day3" 
-                      className="text-center text-xs"
-                      width={columnWidths["day3"] || 45}
-                      onWidthChange={(width) => handleColumnWidthChange("day3", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      3
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day4 && (
-                    <ResizableHeader 
-                      sortKey="day4" 
-                      className="text-center text-xs"
-                      width={columnWidths["day4"] || 45}
-                      onWidthChange={(width) => handleColumnWidthChange("day4", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      4
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day5 && (
-                    <ResizableHeader 
-                      sortKey="day5" 
-                      className="text-center text-xs"
-                      width={columnWidths["day5"] || 45}
-                      onWidthChange={(width) => handleColumnWidthChange("day5", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      5
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day6 && (
-                    <ResizableHeader 
-                      sortKey="day6" 
-                      className="text-center text-xs"
-                      width={columnWidths["day6"] || 45}
-                      onWidthChange={(width) => handleColumnWidthChange("day6", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      6
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day7 && (
-                    <ResizableHeader 
-                      sortKey="day7" 
-                      className="text-center text-xs"
-                      width={columnWidths["day7"] || 45}
-                      onWidthChange={(width) => handleColumnWidthChange("day7", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      7
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day8 && (
-                    <ResizableHeader 
-                      sortKey="day8" 
-                      className="text-center"
-                      width={columnWidths["day8"] || 50}
-                      onWidthChange={(width) => handleColumnWidthChange("day8", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      8
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day9 && (
-                    <ResizableHeader 
-                      sortKey="day9" 
-                      className="text-center"
-                      width={columnWidths["day9"] || 50}
-                      onWidthChange={(width) => handleColumnWidthChange("day9", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      9
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day10 && (
-                    <ResizableHeader 
-                      sortKey="day10" 
-                      className="text-center"
-                      width={columnWidths["day10"] || 50}
-                      onWidthChange={(width) => handleColumnWidthChange("day10", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      10
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day11 && (
-                    <ResizableHeader 
-                      sortKey="day11" 
-                      className="text-center"
-                      width={columnWidths["day11"] || 50}
-                      onWidthChange={(width) => handleColumnWidthChange("day11", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      11
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day12 && (
-                    <ResizableHeader 
-                      sortKey="day12" 
-                      className="text-center"
-                      width={columnWidths["day12"] || 50}
-                      onWidthChange={(width) => handleColumnWidthChange("day12", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      12
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day13 && (
-                    <ResizableHeader 
-                      sortKey="day13" 
-                      className="text-center"
-                      width={columnWidths["day13"] || 50}
-                      onWidthChange={(width) => handleColumnWidthChange("day13", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      13
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day14 && (
-                    <ResizableHeader 
-                      sortKey="day14" 
-                      className="text-center"
-                      width={columnWidths["day14"] || 50}
-                      onWidthChange={(width) => handleColumnWidthChange("day14", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      14
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day15 && (
-                    <ResizableHeader 
-                      sortKey="day15" 
-                      className="text-center"
-                      width={columnWidths["day15"] || 50}
-                      onWidthChange={(width) => handleColumnWidthChange("day15", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      15
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day16 && (
-                    <ResizableHeader 
-                      sortKey="day16" 
-                      className="text-center"
-                      width={columnWidths["day16"] || 50}
-                      onWidthChange={(width) => handleColumnWidthChange("day16", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      16
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day17 && (
-                    <ResizableHeader 
-                      sortKey="day17" 
-                      className="text-center"
-                      width={columnWidths["day17"] || 50}
-                      onWidthChange={(width) => handleColumnWidthChange("day17", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      17
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day18 && (
-                    <ResizableHeader 
-                      sortKey="day18" 
-                      className="text-center"
-                      width={columnWidths["day18"] || 50}
-                      onWidthChange={(width) => handleColumnWidthChange("day18", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      18
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day19 && (
-                    <ResizableHeader 
-                      sortKey="day19" 
-                      className="text-center"
-                      width={columnWidths["day19"] || 50}
-                      onWidthChange={(width) => handleColumnWidthChange("day19", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      19
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day20 && (
-                    <ResizableHeader 
-                      sortKey="day20" 
-                      className="text-center"
-                      width={columnWidths["day20"] || 50}
-                      onWidthChange={(width) => handleColumnWidthChange("day20", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      20
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day21 && (
-                    <ResizableHeader 
-                      sortKey="day21" 
-                      className="text-center"
-                      width={columnWidths["day21"] || 50}
-                      onWidthChange={(width) => handleColumnWidthChange("day21", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      21
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day22 && (
-                    <ResizableHeader 
-                      sortKey="day22" 
-                      className="text-center"
-                      width={columnWidths["day22"] || 50}
-                      onWidthChange={(width) => handleColumnWidthChange("day22", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      22
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day23 && (
-                    <ResizableHeader 
-                      sortKey="day23" 
-                      className="text-center"
-                      width={columnWidths["day23"] || 50}
-                      onWidthChange={(width) => handleColumnWidthChange("day23", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      23
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day24 && (
-                    <ResizableHeader 
-                      sortKey="day24" 
-                      className="text-center"
-                      width={columnWidths["day24"] || 50}
-                      onWidthChange={(width) => handleColumnWidthChange("day24", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      24
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day25 && (
-                    <ResizableHeader 
-                      sortKey="day25" 
-                      className="text-center"
-                      width={columnWidths["day25"] || 50}
-                      onWidthChange={(width) => handleColumnWidthChange("day25", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      25
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day26 && (
-                    <ResizableHeader 
-                      sortKey="day26" 
-                      className="text-center"
-                      width={columnWidths["day26"] || 50}
-                      onWidthChange={(width) => handleColumnWidthChange("day26", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      26
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day27 && (
-                    <ResizableHeader 
-                      sortKey="day27" 
-                      className="text-center"
-                      width={columnWidths["day27"] || 50}
-                      onWidthChange={(width) => handleColumnWidthChange("day27", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      27
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day28 && (
-                    <ResizableHeader 
-                      sortKey="day28" 
-                      className="text-center"
-                      width={columnWidths["day28"] || 50}
-                      onWidthChange={(width) => handleColumnWidthChange("day28", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      28
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day29 && (
-                    <ResizableHeader 
-                      sortKey="day29" 
-                      className="text-center"
-                      width={columnWidths["day29"] || 50}
-                      onWidthChange={(width) => handleColumnWidthChange("day29", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      29
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day30 && (
-                    <ResizableHeader 
-                      sortKey="day30" 
-                      className="text-center"
-                      width={columnWidths["day30"] || 50}
-                      onWidthChange={(width) => handleColumnWidthChange("day30", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      30
-                    </ResizableHeader>
-                  )}
-                  {visibleColumns.day31 && (
-                    <ResizableHeader 
-                      sortKey="day31" 
-                      className="text-center"
-                      width={columnWidths["day31"] || 50}
-                      onWidthChange={(width) => handleColumnWidthChange("day31", width)}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    >
-                      31
-                    </ResizableHeader>
-                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -3238,298 +2932,6 @@ export default function DataTable() {
                         }}
                       >
                         {formatPercentageField(row.foreigner, row.total_message)}
-                      </td>
-                    )}
-
-                    {/* Daily Deposit Columns */}
-                    {visibleColumns.day1 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day1"] || 45}px` }}
-                      >
-                        {row.day1 ? (
-                          <span className="px-1 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded text-xs">
-                            {row.day1.toLocaleString()}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 dark:text-slate-500 text-xs">-</span>
-                        )}
-                      </td>
-                    )}
-                    {visibleColumns.day2 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day2"] || 45}px` }}
-                      >
-                        {row.day2 ? (
-                          <span className="px-1 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded text-xs">
-                            {row.day2.toLocaleString()}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 dark:text-slate-500 text-xs">-</span>
-                        )}
-                      </td>
-                    )}
-                    {visibleColumns.day3 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day3"] || 45}px` }}
-                      >
-                        {row.day3 ? (
-                          <span className="px-1 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded text-xs">
-                            {row.day3.toLocaleString()}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 dark:text-slate-500 text-xs">-</span>
-                        )}
-                      </td>
-                    )}
-                    {visibleColumns.day4 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day4"] || 45}px` }}
-                      >
-                        {row.day4 ? (
-                          <span className="px-1 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded text-xs">
-                            {row.day4.toLocaleString()}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 dark:text-slate-500 text-xs">-</span>
-                        )}
-                      </td>
-                    )}
-                    {visibleColumns.day5 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day5"] || 45}px` }}
-                      >
-                        {row.day5 ? (
-                          <span className="px-1 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded text-xs">
-                            {row.day5.toLocaleString()}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 dark:text-slate-500 text-xs">-</span>
-                        )}
-                      </td>
-                    )}
-                    {visibleColumns.day6 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day6"] || 45}px` }}
-                      >
-                        {row.day6 ? (
-                          <span className="px-1 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded text-xs">
-                            {row.day6.toLocaleString()}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 dark:text-slate-500 text-xs">-</span>
-                        )}
-                      </td>
-                    )}
-                    {visibleColumns.day7 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day7"] || 45}px` }}
-                      >
-                        {row.day7 ? (
-                          <span className="px-1 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded text-xs">
-                            {row.day7.toLocaleString()}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 dark:text-slate-500 text-xs">-</span>
-                        )}
-                      </td>
-                    )}
-                    {visibleColumns.day8 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day8"] || 50}px` }}
-                      >
-                        {row.day8 ? row.day8.toLocaleString() : '-'}
-                      </td>
-                    )}
-                    {visibleColumns.day9 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day9"] || 50}px` }}
-                      >
-                        {row.day9 ? row.day9.toLocaleString() : '-'}
-                      </td>
-                    )}
-                    {visibleColumns.day10 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day10"] || 50}px` }}
-                      >
-                        {row.day10 ? row.day10.toLocaleString() : '-'}
-                      </td>
-                    )}
-                    {visibleColumns.day11 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day11"] || 50}px` }}
-                      >
-                        {row.day11 ? row.day11.toLocaleString() : '-'}
-                      </td>
-                    )}
-                    {visibleColumns.day12 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day12"] || 50}px` }}
-                      >
-                        {row.day12 ? row.day12.toLocaleString() : '-'}
-                      </td>
-                    )}
-                    {visibleColumns.day13 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day13"] || 50}px` }}
-                      >
-                        {row.day13 ? row.day13.toLocaleString() : '-'}
-                      </td>
-                    )}
-                    {visibleColumns.day14 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day14"] || 50}px` }}
-                      >
-                        {row.day14 ? row.day14.toLocaleString() : '-'}
-                      </td>
-                    )}
-                    {visibleColumns.day15 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day15"] || 50}px` }}
-                      >
-                        {row.day15 ? row.day15.toLocaleString() : '-'}
-                      </td>
-                    )}
-                    {visibleColumns.day16 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day16"] || 50}px` }}
-                      >
-                        {row.day16 ? row.day16.toLocaleString() : '-'}
-                      </td>
-                    )}
-                    {visibleColumns.day17 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day17"] || 50}px` }}
-                      >
-                        {row.day17 ? row.day17.toLocaleString() : '-'}
-                      </td>
-                    )}
-                    {visibleColumns.day18 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day18"] || 50}px` }}
-                      >
-                        {row.day18 ? row.day18.toLocaleString() : '-'}
-                      </td>
-                    )}
-                    {visibleColumns.day19 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day19"] || 50}px` }}
-                      >
-                        {row.day19 ? row.day19.toLocaleString() : '-'}
-                      </td>
-                    )}
-                    {visibleColumns.day20 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day20"] || 50}px` }}
-                      >
-                        {row.day20 ? row.day20.toLocaleString() : '-'}
-                      </td>
-                    )}
-                    {visibleColumns.day21 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day21"] || 50}px` }}
-                      >
-                        {row.day21 ? row.day21.toLocaleString() : '-'}
-                      </td>
-                    )}
-                    {visibleColumns.day22 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day22"] || 50}px` }}
-                      >
-                        {row.day22 ? row.day22.toLocaleString() : '-'}
-                      </td>
-                    )}
-                    {visibleColumns.day23 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day23"] || 50}px` }}
-                      >
-                        {row.day23 ? row.day23.toLocaleString() : '-'}
-                      </td>
-                    )}
-                    {visibleColumns.day24 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day24"] || 50}px` }}
-                      >
-                        {row.day24 ? row.day24.toLocaleString() : '-'}
-                      </td>
-                    )}
-                    {visibleColumns.day25 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day25"] || 50}px` }}
-                      >
-                        {row.day25 ? row.day25.toLocaleString() : '-'}
-                      </td>
-                    )}
-                    {visibleColumns.day26 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day26"] || 50}px` }}
-                      >
-                        {row.day26 ? row.day26.toLocaleString() : '-'}
-                      </td>
-                    )}
-                    {visibleColumns.day27 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day27"] || 50}px` }}
-                      >
-                        {row.day27 ? row.day27.toLocaleString() : '-'}
-                      </td>
-                    )}
-                    {visibleColumns.day28 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day28"] || 50}px` }}
-                      >
-                        {row.day28 ? row.day28.toLocaleString() : '-'}
-                      </td>
-                    )}
-                    {visibleColumns.day29 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day29"] || 50}px` }}
-                      >
-                        {row.day29 ? row.day29.toLocaleString() : '-'}
-                      </td>
-                    )}
-                    {visibleColumns.day30 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day30"] || 50}px` }}
-                      >
-                        {row.day30 ? row.day30.toLocaleString() : '-'}
-                      </td>
-                    )}
-                    {visibleColumns.day31 && (
-                      <td 
-                        className="text-center truncate border-r border-slate-200 p-1"
-                        style={{ width: `${columnWidths["day31"] || 50}px` }}
-                      >
-                        {row.day31 ? row.day31.toLocaleString() : '-'}
                       </td>
                     )}
                   </TableRow>

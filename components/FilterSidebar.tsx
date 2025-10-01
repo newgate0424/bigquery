@@ -160,15 +160,7 @@ export function FilterSidebar({
       'blocked': 'ถูกบล็อก',
       'under18': 'ต่ำกว่า 18',
       'over50': 'เกิน 50',
-      'foreigner': 'ชาวต่างชาติ',
-      // Daily deposit columns
-      'day1': 'วันที่ 1', 'day2': 'วันที่ 2', 'day3': 'วันที่ 3', 'day4': 'วันที่ 4', 'day5': 'วันที่ 5',
-      'day6': 'วันที่ 6', 'day7': 'วันที่ 7', 'day8': 'วันที่ 8', 'day9': 'วันที่ 9', 'day10': 'วันที่ 10',
-      'day11': 'วันที่ 11', 'day12': 'วันที่ 12', 'day13': 'วันที่ 13', 'day14': 'วันที่ 14', 'day15': 'วันที่ 15',
-      'day16': 'วันที่ 16', 'day17': 'วันที่ 17', 'day18': 'วันที่ 18', 'day19': 'วันที่ 19', 'day20': 'วันที่ 20',
-      'day21': 'วันที่ 21', 'day22': 'วันที่ 22', 'day23': 'วันที่ 23', 'day24': 'วันที่ 24', 'day25': 'วันที่ 25',
-      'day26': 'วันที่ 26', 'day27': 'วันที่ 27', 'day28': 'วันที่ 28', 'day29': 'วันที่ 29', 'day30': 'วันที่ 30',
-      'day31': 'วันที่ 31'
+      'foreigner': 'ชาวต่างชาติ'
     };
     return thaiNames[key] || key;
   };
@@ -296,6 +288,33 @@ export function FilterSidebar({
       setIsInitialized(true);
     }
   }, [preferences, preferencesLoading, isInitialized]);
+
+  // Listen for user login events to reset component state
+  useEffect(() => {
+    const handleUserLogin = () => {
+      console.log('🔄 FilterSidebar detected user login, resetting state...');
+      
+      // Reset initialization to allow preferences to reload
+      setIsInitialized(false);
+      
+      // Reset filter states to defaults
+      setSearchText('');
+      setSelectedTeam('');
+      setSelectedAdvertiser('all');
+      setPageDisplayMode('pageid');
+      setSelectedStatus('all');
+      
+      console.log('✅ FilterSidebar state reset for new user');
+    };
+
+    // Add event listener
+    window.addEventListener('userLoggedIn', handleUserLogin);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('userLoggedIn', handleUserLogin);
+    };
+  }, []);
 
   // Auto-save filter settings when they change
   useEffect(() => {
@@ -761,15 +780,7 @@ export function FilterSidebar({
       blocked: true,
       under18: true,
       over50: true,
-      foreigner: true,
-      // Daily deposit columns (day 1-31) - default some visible
-      day1: true, day2: true, day3: true, day4: true, day5: true,
-      day6: true, day7: true, day8: false, day9: false, day10: false,
-      day11: false, day12: false, day13: false, day14: false, day15: false,
-      day16: false, day17: false, day18: false, day19: false, day20: false,
-      day21: false, day22: false, day23: false, day24: false, day25: false,
-      day26: false, day27: false, day28: false, day29: false, day30: false,
-      day31: false
+      foreigner: true
     }));
   }, [setVisibleColumns]);
 

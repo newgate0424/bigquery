@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Monitor Page Persistence</title>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+            background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin: 16px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .test-step {
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 12px 0;
+        }
+        .test-step.current {
+            border-color: #3b82f6;
+            background: #eff6ff;
+        }
+        .test-step.passed {
+            border-color: #10b981;
+            background: #ecfdf5;
+        }
+        .test-step.failed {
+            border-color: #ef4444;
+            background: #fef2f2;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #3b82f6;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            margin: 8px 8px 8px 0;
+            font-weight: 500;
+        }
+        .button:hover {
+            background: #2563eb;
+        }
+        .button.secondary {
+            background: #6b7280;
+        }
+        .button.secondary:hover {
+            background: #4b5563;
+        }
+        .status {
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .status.pending { background: #fef3c7; color: #92400e; }
+        .status.testing { background: #dbeafe; color: #1e40af; }
+        .status.passed { background: #d1fae5; color: #065f46; }
+        .status.failed { background: #fecaca; color: #991b1b; }
+        .log {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 12px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+            margin: 12px 0;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .issue {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 6px;
+            padding: 16px;
+            margin: 12px 0;
+        }
+        .fix {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 6px;
+            padding: 16px;
+            margin: 12px 0;
+        }
+        .feature-list {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin: 16px 0;
+        }
+        .feature-item {
+            background: #f1f5f9;
+            padding: 12px;
+            border-radius: 6px;
+            border-left: 4px solid #3b82f6;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🔧 การทดสอบ Monitor Page Persistence</h1>
+        <p>ทดสอบว่าการตั้งค่าในหน้า /monitor จะคงอยู่หลังจากรีเฟรชหน้าหรือไม่</p>
+        
+        <div class="issue">
+            <h3>🐛 ปัญหาที่พบ</h3>
+            <p>หน้า /monitor ชอบรีเซ็ทการตั้งค่าต่างๆ เมื่อรีเฟรช แทนที่จะแสดงค่าที่บันทึกไว้:</p>
+            <div class="feature-list">
+                <div class="feature-item">📅 วันที่ (Date Range)</div>
+                <div class="feature-item">👥 ทีม (Team Selection)</div>
+                <div class="feature-item">🎯 Adser (Adser Selection)</div>
+                <div class="feature-item">📊 สถานะ (Status Filter)</div>
+                <div class="feature-item">🔍 การค้นหา (Search Text)</div>
+                <div class="feature-item">📱 Page Display Mode</div>
+                <div class="feature-item">👁️ Column Visibility</div>
+                <div class="feature-item">🎨 Color Configuration</div>
+                <div class="feature-item">🔄 Sort Settings</div>
+            </div>
+        </div>
+
+        <div class="fix">
+            <h3>🛠️ การแก้ไข</h3>
+            <ul>
+                <li>เปิดใช้งาน preferences system ที่ถูกปิดไว้</li>
+                <li>โหลด filter settings จาก database preferences</li>
+                <li>แก้ไข saveFilters เพื่อบันทึกลง database และ localStorage</li>
+                <li>รองรับ backward compatibility กับ localStorage</li>
+                <li>ปรับปรุง initialization flow เพื่อรอ preferences โหลดเสร็จ</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>📋 ขั้นตอนการทดสอบ</h2>
+        
+        <div class="test-step" id="step1">
+            <span class="status pending">รอ</span>
+            <strong>1. เข้าหน้า Monitor</strong>
+            <p>เข้าไปที่หน้า Monitor และรอให้โหลดเสร็จ</p>
+            <a href="http://localhost:3000/monitor" class="button" target="_blank">เปิดหน้า Monitor</a>
+        </div>
+
+        <div class="test-step" id="step2">
+            <span class="status pending">รอ</span>
+            <strong>2. ทดสอบ Filter Settings</strong>
+            <p>เปลี่ยนการตั้งค่า filters ต่างๆ</p>
+            <div class="log" id="filterLog">
+                - เลือกทีม (เช่น HCA)
+                - เลือก Adser (เช่น Boogey)
+                - เลือกสถานะ (เช่น Active)
+                - เปลี่ยนช่วงวันที่
+                - พิมพ์ข้อความค้นหา
+            </div>
+        </div>
+
+        <div class="test-step" id="step3">
+            <span class="status pending">รอ</span>
+            <strong>3. ทดสอบ Column Settings</strong>
+            <p>ปรับแต่งการแสดงผลคอลัมน์</p>
+            <div class="log" id="columnLog">
+                - เปิด/ปิดคอลัมน์ในหน้า Filter Sidebar
+                - ปรับขนาดคอลัมน์
+                - เปลี่ยนลำดับการเรียง (Sort)
+            </div>
+        </div>
+
+        <div class="test-step" id="step4">
+            <span class="status pending">รอ</span>
+            <strong>4. ทดสอบ Color Configuration</strong>
+            <p>ตั้งค่าสีสำหรับเซลล์ต่างๆ</p>
+            <div class="log" id="colorLog">
+                - เปิด Color Settings จาก Filter Sidebar
+                - เลือกเงื่อนไขสี (เช่น deposit > 5)
+                - ตั้งค่าสีพื้นหลังและตัวอักษร
+            </div>
+        </div>
+
+        <div class="test-step" id="step5">
+            <span class="status pending">รอ</span>
+            <strong>5. รีเฟรชหน้า</strong>
+            <p>รีเฟรชหน้า monitor (F5 หรือ Ctrl+R)</p>
+            <div class="log" id="refreshLog">
+                รอการทดสอบ...
+            </div>
+        </div>
+
+        <div class="test-step" id="step6">
+            <span class="status pending">รอ</span>
+            <strong>6. ตรวจสอบค่าที่บันทึก</strong>
+            <p>ตรวจสอบว่าการตั้งค่าทั้งหมดยังคงอยู่หรือไม่</p>
+            <div class="log" id="persistenceLog">
+                รอการทดสอบ...
+            </div>
+        </div>
+
+        <div class="test-step" id="step7">
+            <span class="status pending">รอ</span>
+            <strong>7. ทดสอบการนำทาง</strong>
+            <p>ไปหน้าอื่น (เช่น Overview) แล้วกลับมาหน้า Monitor</p>
+            <div class="log" id="navigationLog">
+                รอการทดสอบ...
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>🎯 ผลการทดสอบที่คาดหวัง</h2>
+        <ul>
+            <li><strong>Filter Persistence:</strong> ทีม, Adser, สถานะ, วันที่ คงอยู่หลังรีเฟรช</li>
+            <li><strong>Column Persistence:</strong> การแสดง/ซ่อนคอลัมน์คงอยู่</li>
+            <li><strong>Sort Persistence:</strong> การเรียงลำดับคงอยู่</li>
+            <li><strong>Color Persistence:</strong> การตั้งค่าสีคงอยู่</li>
+            <li><strong>Navigation:</strong> การตั้งค่าคงอยู่หลังการนำทาง</li>
+            <li><strong>Performance:</strong> โหลดเร็วและ sync กับ database</li>
+        </ul>
+    </div>
+
+    <div class="card">
+        <h2>🔍 Debug Information</h2>
+        <p>เปิด Developer Console (F12) เพื่อดู logs:</p>
+        <div class="log">
+✅ Loading filter settings from database preferences: {...}
+✅ Filters saved to database via preferences: {...}
+✅ Column visibility saved to database: {...}
+✅ DataTable initialization completed
+📦 Loading filter settings from localStorage (will sync to database): {...}
+        </div>
+        
+        <h3>📊 Server Logs</h3>
+        <div class="log">
+PATCH /api/preferences 200 - บันทึก preferences สำเร็จ
+GET /api/data?...&team=HCA&adser=Boogey&status=Active - ข้อมูลถูก filter ตามการตั้งค่า
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>📚 Technical Details</h2>
+        <h3>การเปลี่ยนแปลงในโค้ด:</h3>
+        <div class="log">
+// components/DataTable.tsx
+
+1. เปิดใช้งาน preferences system:
+   - ลบ "TEMPORARILY DISABLE PREFERENCES LOADING"
+   - เพิ่ม useEffect ใหม่สำหรับโหลดจาก preferences
+
+2. แก้ไข saveFilters function:
+   - บันทึกลง localStorage (immediate response)
+   - บันทึกลง database via updateFilterSettings
+   - รองรับ date serialization
+
+3. ปรับปรุง initialization:
+   - รอ preferences โหลดเสร็จก่อน setIsInitialized(true)
+   - ตรวจสอบ preferencesLoading state
+   - fallback ไป localStorage หากไม่มีใน database
+
+4. แก้ไข type issues:
+   - แปลง string dates เป็น Date objects
+   - ปรับ dateRange serialization สำหรับ database
+        </div>
+    </div>
+
+    <script>
+        // Simple testing framework
+        function updateStep(stepId, status, message) {
+            const step = document.getElementById(stepId);
+            const statusElement = step.querySelector('.status');
+            const logElement = step.querySelector('.log') || step.querySelector('div[id$="Log"]');
+            
+            statusElement.className = `status ${status}`;
+            statusElement.textContent = {
+                'pending': 'รอ',
+                'testing': 'ทดสอบ',
+                'passed': 'ผ่าน', 
+                'failed': 'ไม่ผ่าน'
+            }[status];
+            
+            step.className = `test-step ${status}`;
+            
+            if (logElement && message) {
+                logElement.textContent = message;
+            }
+        }
+
+        // Auto-check if running on localhost
+        if (window.location.hostname === 'localhost') {
+            updateStep('step1', 'testing', 'ตรวจสอบการเชื่อมต่อ localhost...');
+            
+            fetch('http://localhost:3000/api/auth/me')
+                .then(response => {
+                    if (response.ok) {
+                        updateStep('step1', 'passed', 'เข้าสู่ระบบแล้ว - พร้อมทดสอบ Monitor Page');
+                        updateStep('step2', 'testing', 'กำลังรอการทดสอบ filter settings...');
+                    } else {
+                        updateStep('step1', 'failed', 'ยังไม่ได้เข้าสู่ระบบ');
+                    }
+                })
+                .catch(err => {
+                    updateStep('step1', 'failed', 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์');
+                });
+        }
+
+        // Monitor for preferences API calls
+        console.log('🔧 Monitor Page Persistence Test');
+        console.log('1. ไปที่ http://localhost:3000/monitor');
+        console.log('2. เปลี่ยนการตั้งค่า filters, columns, colors');
+        console.log('3. รีเฟรชหน้า (F5)');
+        console.log('4. ตรวจสอบว่าการตั้งค่าคงอยู่');
+        console.log('5. ดู console logs สำหรับ preferences loading/saving');
+    </script>
+</body>
+</html>

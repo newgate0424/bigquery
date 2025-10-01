@@ -1,7 +1,6 @@
 "use client"
 
-import { createContext, useContext, useEffect, useState } from 'react'
-import { useUserPreferences } from './preferences'
+import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 
 type ThemeMode = 'light' | 'dark' | 'system'
 
@@ -24,10 +23,11 @@ interface ThemeContextType {
   setColors: (colors: Partial<ThemeColors>) => void
   setFonts: (fonts: Partial<FontSettings>) => void
   resetToDefaults: () => void
+  isLoading: boolean
 }
 
 const defaultColors: ThemeColors = {
-  primary: '#2563eb', // blue-600
+  primary: '#2563eb',
   background: '#ffffff'
 }
 
@@ -38,102 +38,78 @@ const defaultFonts: FontSettings = {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 
+// Helper function to save to database
+const saveThemeToDatabase = async (themeData: {
+  primaryColor: string
+  backgroundColor: string
+  fontFamily: string
+  fontSize: number
+  isDarkMode: boolean
+}) => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return false;
+
+    const response = await fetch('/api/preferences', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        type: 'theme',
+        data: themeData
+      })
+    });
+
+    return response.ok;
+  } catch (error) {
+    console.error('Failed to save theme to database:', error);
+    return false;
+  }
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<ThemeMode>('system')
   const [colors, setColors] = useState<ThemeColors>(defaultColors)
   const [fonts, setFonts] = useState<FontSettings>(defaultFonts)
   const [effectiveTheme, setEffectiveTheme] = useState<'light' | 'dark'>('light')
-  const [isLoaded, setIsLoaded] = useState(false)
-  const { preferences, updateThemeSettings } = useUserPreferences()
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Load theme from user preferences or localStorage
+  // Load theme from localStorage on mount
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
-    // First try to load from user preferences
-    if (preferences?.themeSettings) {
-      const themeSettings = preferences.themeSettings;
-      
-      if (themeSettings.primaryColor && themeSettings.backgroundColor) {
-        console.log('Loading theme from database:', themeSettings);
-        setColors({
-          primary: themeSettings.primaryColor,
-          background: themeSettings.backgroundColor
-        });
-      }
-
-      // Load fonts if available
-      if (themeSettings.fontFamily || themeSettings.fontSize) {
-        console.log('Loading fonts from database:', {
-          family: themeSettings.fontFamily,
-          size: themeSettings.fontSize
-        });
-        setFonts({
-          family: themeSettings.fontFamily || defaultFonts.family,
-          size: themeSettings.fontSize || defaultFonts.size
-        });
-      }
-      
-      if (themeSettings.isDarkMode !== undefined) {
-        setMode(themeSettings.isDarkMode ? 'dark' : 'light');
-      }
-      
-      setIsLoaded(true);
-      return;
-    }
-    
-    // Fallback to localStorage for backwards compatibility
-    const savedMode = localStorage.getItem('theme-mode') as ThemeMode
-    const savedColors = localStorage.getItem('theme-colors')
-    const savedFonts = localStorage.getItem('theme-fonts')
-    
-    if (savedMode || savedColors || savedFonts) {
-      console.log('Loading theme from localStorage, will sync to database');
-      
-      let newMode = mode;
-      let newColors = colors;
-      let newFonts = fonts;
-      
-      if (savedMode) {
-        newMode = savedMode;
-        setMode(savedMode);
-      }
-      
-      if (savedColors) {
-        try {
-          const parsedColors = JSON.parse(savedColors);
-          newColors = parsedColors;
-          setColors(parsedColors);
-        } catch (e) {
-          console.error('Failed to parse saved colors:', e)
+    const loadTheme = () => {
+      try {
+        // Load mode
+        const savedMode = localStorage.getItem('theme-mode') as ThemeMode
+        if (savedMode) {
+          setMode(savedMode)
         }
-      }
 
-      if (savedFonts) {
-        try {
-          const parsedFonts = JSON.parse(savedFonts);
-          newFonts = parsedFonts;
-          setFonts(parsedFonts);
-        } catch (e) {
-          console.error('Failed to parse saved fonts:', e)
+        // Load colors
+        const savedColors = localStorage.getItem('theme-colors')
+        if (savedColors) {
+          const parsedColors = JSON.parse(savedColors)
+          setColors(parsedColors)
         }
-      }
-      
-      // Sync to database
-      if (updateThemeSettings) {
-        updateThemeSettings({
-          primaryColor: newColors.primary,
-          backgroundColor: newColors.background,
-          fontFamily: newFonts.family,
-          fontSize: newFonts.size,
-          isDarkMode: newMode === 'dark'
-        });
+
+        // Load fonts
+        const savedFonts = localStorage.getItem('theme-fonts')
+        if (savedFonts) {
+          const parsedFonts = JSON.parse(savedFonts)
+          setFonts(parsedFonts)
+        }
+
+        console.log('🎨 Theme loaded from localStorage')
+      } catch (error) {
+        console.error('Failed to load theme from localStorage:', error)
+      } finally {
+        setIsLoading(false)
       }
     }
-    
-    // Mark as loaded after attempting to load from localStorage
-    setIsLoaded(true);
-  }, [preferences?.themeSettings]);
+
+    loadTheme()
+  }, [])
 
   // Determine effective theme based on mode
   useEffect(() => {
@@ -155,11 +131,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
   }, [mode])
 
-  // Apply theme to document - only after loading from localStorage
+  // Apply theme to document
   useEffect(() => {
-    if (!isLoaded) return; // Don't apply until loaded from localStorage
-    
-    // Wait for DOM to be ready
+    if (isLoading) return
+
     const applyTheme = () => {
       const root = document.documentElement
       
@@ -167,248 +142,116 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       root.classList.remove('light', 'dark')
       root.classList.add(effectiveTheme)
       
-      // Convert hex to hsl for CSS variables
-      const hexToHsl = (hex: string) => {
-        const r = parseInt(hex.slice(1, 3), 16) / 255;
-        const g = parseInt(hex.slice(3, 5), 16) / 255;
-        const b = parseInt(hex.slice(5, 7), 16) / 255;
-        
-        const max = Math.max(r, g, b);
-        const min = Math.min(r, g, b);
-        let h = 0, s = 0;
-        const l = (max + min) / 2;
-        
-        if (max !== min) {
-          const d = max - min;
-          s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-          switch (max) {
-            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-            case g: h = (b - r) / d + 2; break;
-            case b: h = (r - g) / d + 4; break;
-          }
-          h /= 6;
-        }
-        
-        return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
-      };
-      
-      console.log('Applying theme colors:', colors);
-      
       // Apply primary color
       if (colors.primary.startsWith('#')) {
-        const hslPrimary = hexToHsl(colors.primary);
-        root.style.setProperty('--primary', `hsl(${hslPrimary})`);
-        root.style.setProperty('--color-primary', `hsl(${hslPrimary})`);
-        // Also update ring color to match primary for focus states
-        root.style.setProperty('--ring', `hsl(${hslPrimary})`);
-        root.style.setProperty('--color-ring', `hsl(${hslPrimary})`);
+        root.style.setProperty('--primary', colors.primary)
+        root.style.setProperty('--color-primary', colors.primary)
+        root.style.setProperty('--ring', colors.primary)
+        root.style.setProperty('--color-ring', colors.primary)
       }
       
-      // Handle background - support both solid colors and gradients
+      // Apply background
       if (colors.background.startsWith('linear-gradient')) {
-        // For gradients, apply to body background and page containers
-        document.body.style.background = colors.background;
-        root.style.setProperty('--background-gradient', colors.background);
-        root.style.setProperty('--color-background', 'transparent');
-        
-        console.log('Applied gradient background to body:', colors.background);
+        document.body.style.background = colors.background
+        root.style.setProperty('--background-gradient', colors.background)
       } else if (colors.background.startsWith('#')) {
-        // For solid colors, update CSS variables and all backgrounds
-        const hslBackground = hexToHsl(colors.background);
-        root.style.setProperty('--background', `hsl(${hslBackground})`);
-        root.style.setProperty('--color-background', colors.background);
-        root.style.setProperty('--background-gradient', 'none');
-        document.body.style.background = colors.background;
-        
-        console.log('Applied solid background to body:', colors.background);
-      } else {
-        // Default fallback - apply to body
-        const defaultGradient = effectiveTheme === 'dark' 
-          ? 'linear-gradient(135deg, #1e293b, #334155, #475569)'
-          : 'linear-gradient(135deg, #f8fafc, #e2e8f0, #cbd5e1)';
-        document.body.style.background = defaultGradient;
-        root.style.setProperty('--background-gradient', defaultGradient);
-        
-        console.log('Applied default gradient to body for', effectiveTheme, 'theme');
+        document.body.style.background = colors.background
+        root.style.setProperty('--background', colors.background)
+        root.style.setProperty('--color-background', colors.background)
       }
       
-      // Apply fonts to document
-      console.log('Applying fonts:', fonts);
-      root.style.setProperty('--font-family', fonts.family);
-      root.style.setProperty('--font-size', `${fonts.size}px`);
-      document.body.style.fontFamily = fonts.family;
-      document.body.style.fontSize = `${fonts.size}px`;
+      // Apply fonts
+      root.style.setProperty('--font-family', fonts.family)
+      root.style.setProperty('--font-size', `${fonts.size}px`)
+      document.body.style.fontFamily = fonts.family
+      document.body.style.fontSize = `${fonts.size}px`
       
-      // Save to localStorage for immediate response
-      localStorage.setItem('theme-mode', mode)
-      localStorage.setItem('theme-colors', JSON.stringify(colors))
-      localStorage.setItem('theme-fonts', JSON.stringify(fonts))
-    };
-    
-    // Run immediately if DOM is ready, otherwise wait
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', applyTheme);
-    } else {
-      // Use setTimeout to ensure all components have mounted and navigation is complete
-      setTimeout(applyTheme, 100);
+      console.log('🎨 Theme applied to document')
     }
+
+    applyTheme()
+  }, [mode, colors, fonts, effectiveTheme, isLoading])
+
+  const handleSetMode = useCallback((newMode: ThemeMode) => {
+    setMode(newMode)
+    localStorage.setItem('theme-mode', newMode)
     
-    return () => {
-      document.removeEventListener('DOMContentLoaded', applyTheme);
-    };
+    // Save to database (background)
+    const isDark = newMode === 'dark' || (newMode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+    saveThemeToDatabase({
+      primaryColor: colors.primary,
+      backgroundColor: colors.background,
+      fontFamily: fonts.family,
+      fontSize: fonts.size,
+      isDarkMode: isDark
+    })
+
+    console.log('🎨 Mode updated:', newMode)
+  }, [colors, fonts])
+
+  const handleSetColors = useCallback((newColors: Partial<ThemeColors>) => {
+    const updatedColors = { ...colors, ...newColors }
+    setColors(updatedColors)
+    localStorage.setItem('theme-colors', JSON.stringify(updatedColors))
     
-    // Only save to database on user-initiated changes, not on initial load
-    // This prevents excessive API calls during component initialization
-  }, [mode, colors, fonts, effectiveTheme, isLoaded])
-
-  // Additional effect to handle page navigation - re-apply background when page changes
-  useEffect(() => {
-    if (!isLoaded || !colors.background) return;
-
-    const applyBackgroundToPages = () => {
-      // Apply to specific page containers with data-page attribute
-      const pageContainers = document.querySelectorAll('[data-page]');
-      pageContainers.forEach(container => {
-        (container as HTMLElement).style.background = colors.background;
-      });
-      
-      // Also ensure body background is applied
-      document.body.style.background = colors.background;
-      
-      console.log('Re-applied background to', pageContainers.length, 'page containers:', colors.background);
-    };
-
-    // Apply immediately
-    applyBackgroundToPages();
-
-    // Set up MutationObserver to detect when new pages are loaded
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.type === 'childList') {
-          // Check if new elements with data-page attribute were added
-          const addedNodes = Array.from(mutation.addedNodes).filter(node => 
-            node.nodeType === Node.ELEMENT_NODE
-          ) as Element[];
-          
-          const hasNewPageContainer = addedNodes.some(node => 
-            node.hasAttribute?.('data-page') || 
-            node.querySelector?.('[data-page]')
-          );
-          
-          if (hasNewPageContainer) {
-            // Small delay to ensure the page has fully rendered
-            setTimeout(applyBackgroundToPages, 50);
-          }
-        }
-      });
-    });
-
-    // Observe changes to the document body
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [colors.background, isLoaded])
-
-  const handleSetMode = (newMode: ThemeMode) => {
-    setMode(newMode);
-    
-    // Immediately save to localStorage
-    localStorage.setItem('theme-mode', newMode);
-    
-    // Save to database
-    if (updateThemeSettings) {
-      updateThemeSettings({
-        primaryColor: colors.primary,
-        backgroundColor: colors.background,
-        fontFamily: fonts.family,
-        fontSize: fonts.size,
-        isDarkMode: newMode === 'dark'
-      });
-    }
-    console.log('Mode updated and saved:', newMode);
-  }
-
-  const handleSetColors = (newColors: Partial<ThemeColors>) => {
-    const updatedColors = { ...colors, ...newColors };
-    setColors(updatedColors);
-    
-    // Immediately save to localStorage
-    localStorage.setItem('theme-colors', JSON.stringify(updatedColors));
-    
-    // Immediately apply background to body and all page containers
+    // Apply background immediately
     if (updatedColors.background) {
-      // Apply to body
-      document.body.style.background = updatedColors.background;
-      
-      // Apply to all page containers
-      const pageContainers = document.querySelectorAll('[data-page]');
+      document.body.style.background = updatedColors.background
+      const pageContainers = document.querySelectorAll('[data-page]')
       pageContainers.forEach(container => {
-        (container as HTMLElement).style.background = updatedColors.background;
-      });
-      
-      console.log('Immediately applied background to body and', pageContainers.length, 'page containers:', updatedColors.background);
+        (container as HTMLElement).style.background = updatedColors.background
+      })
     }
     
-    // Save to database
-    if (updateThemeSettings) {
-      updateThemeSettings({
-        primaryColor: updatedColors.primary,
-        backgroundColor: updatedColors.background,
-        fontFamily: fonts.family,
-        fontSize: fonts.size,
-        isDarkMode: mode === 'dark'
-      });
-    }
-    console.log('Colors updated and saved:', updatedColors);
-  }
+    // Save to database (background)
+    saveThemeToDatabase({
+      primaryColor: updatedColors.primary,
+      backgroundColor: updatedColors.background,
+      fontFamily: fonts.family,
+      fontSize: fonts.size,
+      isDarkMode: mode === 'dark'
+    })
 
-  const handleSetFonts = (newFonts: Partial<FontSettings>) => {
-    const updatedFonts = { ...fonts, ...newFonts };
-    setFonts(updatedFonts);
-    
-    // Immediately save to localStorage
-    localStorage.setItem('theme-fonts', JSON.stringify(updatedFonts));
-    
-    // Save to database
-    if (updateThemeSettings) {
-      updateThemeSettings({
-        primaryColor: colors.primary,
-        backgroundColor: colors.background,
-        fontFamily: updatedFonts.family,
-        fontSize: updatedFonts.size,
-        isDarkMode: mode === 'dark'
-      });
-    }
-    console.log('Fonts updated and saved:', updatedFonts);
-  }
+    console.log('🎨 Colors updated:', updatedColors)
+  }, [colors, fonts, mode])
 
-  const resetToDefaults = () => {
+  const handleSetFonts = useCallback((newFonts: Partial<FontSettings>) => {
+    const updatedFonts = { ...fonts, ...newFonts }
+    setFonts(updatedFonts)
+    localStorage.setItem('theme-fonts', JSON.stringify(updatedFonts))
+    
+    // Save to database (background)
+    saveThemeToDatabase({
+      primaryColor: colors.primary,
+      backgroundColor: colors.background,
+      fontFamily: updatedFonts.family,
+      fontSize: updatedFonts.size,
+      isDarkMode: mode === 'dark'
+    })
+
+    console.log('🎨 Fonts updated:', updatedFonts)
+  }, [colors, fonts, mode])
+
+  const resetToDefaults = useCallback(() => {
     setMode('system')
     setColors(defaultColors)
     setFonts(defaultFonts)
     
-    // Immediately save to localStorage
     localStorage.setItem('theme-mode', 'system')
     localStorage.setItem('theme-colors', JSON.stringify(defaultColors))
     localStorage.setItem('theme-fonts', JSON.stringify(defaultFonts))
     
-    // Save to database
-    if (updateThemeSettings) {
-      updateThemeSettings({
-        primaryColor: defaultColors.primary,
-        backgroundColor: defaultColors.background,
-        fontFamily: defaultFonts.family,
-        fontSize: defaultFonts.size,
-        isDarkMode: false
-      });
-    }
-    console.log('Reset to defaults and saved')
-  }
+    // Save to database (background)
+    saveThemeToDatabase({
+      primaryColor: defaultColors.primary,
+      backgroundColor: defaultColors.background,
+      fontFamily: defaultFonts.family,
+      fontSize: defaultFonts.size,
+      isDarkMode: false
+    })
+
+    console.log('🎨 Reset to defaults')
+  }, [])
 
   return (
     <ThemeContext.Provider value={{
@@ -419,7 +262,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       setMode: handleSetMode,
       setColors: handleSetColors,
       setFonts: handleSetFonts,
-      resetToDefaults
+      resetToDefaults,
+      isLoading
     }}>
       {children}
     </ThemeContext.Provider>

@@ -372,13 +372,19 @@ export function useUserPreferences() {
     // Listen for user login events to reload preferences (but debounce this too)
     let loginTimeout: NodeJS.Timeout;
     const handleUserLogin = (event: CustomEvent) => {
-      console.log('User logged in event received, reloading preferences...', event.detail);
+      console.log('🔄 User logged in event received, reloading preferences...', event.detail);
+      
+      // Clear any existing state first
+      setPreferences(null);
+      setLoading(true);
+      setError(null);
       
       // Debounce login-triggered reloads
       if (loginTimeout) clearTimeout(loginTimeout);
       loginTimeout = setTimeout(() => {
+        console.log('🔄 Starting delayed preferences reload after login...');
         loadPreferences();
-      }, 1000);
+      }, 1500); // เพิ่มเวลาให้มากขึ้นเพื่อให้ token ถูกตั้งค่าให้เสร็จก่อน
     };
 
     // Handle logout - cancel all pending preferences updates
@@ -435,32 +441,38 @@ export function useUserPreferences() {
   }, [debouncer]);
 
   const updateThemeSettings = useCallback(async (themeSettings: ThemeSettings) => {
+    console.log('🎨 updateThemeSettings called with:', themeSettings);
+    
     // บันทึกใน localStorage ทันที
     localStorage.setItem('themeSettings', JSON.stringify(themeSettings));
     
-    // Update local state immediately - DISABLED for debugging
-    if (false) {
-      setPreferences(prevPrefs => {
-        if (prevPrefs) {
-          return {
-            ...prevPrefs,
-            themeSettings
-          };
-        }
-        return prevPrefs;
-      });
-    }
-    
-    // Debounce API call
-    debouncer.debounceUpdate('theme', themeSettings, async () => {
-      const success = await PreferencesAPI.saveThemeSettings(themeSettings);
-      if (!success) {
-        console.warn('Failed to sync theme settings to server');
+    // Update local state immediately - RE-ENABLED to fix theme persistence
+    setPreferences(prevPrefs => {
+      if (prevPrefs) {
+        const updatedPrefs = {
+          ...prevPrefs,
+          themeSettings
+        };
+        console.log('🎨 Updated local theme preferences:', updatedPrefs.themeSettings);
+        return updatedPrefs;
       }
-      return success;
+      return prevPrefs;
     });
     
-    return true;
+    // Return promise from debounce API call
+    return new Promise<boolean>((resolve) => {
+      debouncer.debounceUpdate('theme', themeSettings, async () => {
+        console.log('🎨 Saving theme settings to database:', themeSettings);
+        const success = await PreferencesAPI.saveThemeSettings(themeSettings);
+        if (!success) {
+          console.warn('Failed to sync theme settings to server');
+        } else {
+          console.log('✅ Theme settings saved to database successfully');
+        }
+        resolve(success);
+        return success;
+      });
+    });
   }, [debouncer]);
 
   const updateFilterSettings = useCallback(async (filterSettings: FilterSettings) => {

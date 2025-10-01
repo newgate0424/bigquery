@@ -65,20 +65,21 @@ export default function LoginPage() {
     
     // Trigger preferences loading for logged in user
     try {
-      console.log('Triggering preferences load after login...');
+      console.log('🔄 Triggering preferences load after login...');
       triggerPreferencesLoad();
       
-      // Give a small delay to allow preferences to start loading
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Give more time for preferences to be processed
+      console.log('⏳ Waiting for preferences system to initialize...');
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
-      console.log('Auto-sync triggered successfully');
+      console.log('✅ Auto-sync triggered successfully');
     } catch (error) {
       console.error('Error triggering preferences load:', error);
       // Don't block login if preferences fail
     }
     
     // Redirect ทันที ไม่มี alert และ setTimeout
-    console.log('Redirecting to overview...');
+    console.log('🔄 Redirecting to overview...');
     window.location.replace('/overview');
   };
 

@@ -85,12 +85,21 @@ const fontSizeOptions = [
 ];
 
 export default function SettingsPage() {
-  const { colors, fonts, setColors, setFonts } = useTheme();
+  const { colors, fonts, setColors, setFonts, isLoading } = useTheme();
   const [tempColors, setTempColors] = useState(colors);
   const [tempFonts, setTempFonts] = useState(fonts);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [selectedBgCategory, setSelectedBgCategory] = useState<string>('minimal');
   const [selectedFontCategory, setSelectedFontCategory] = useState<string>('modern');
+
+  // Sync temp values with theme context when it changes
+  useEffect(() => {
+    if (!isLoading) {
+      console.log('🎨 Settings: Theme context updated, syncing temp values:', { colors, fonts });
+      setTempColors(colors);
+      setTempFonts(fonts);
+    }
+  }, [colors, fonts, isLoading]);
 
   // Track changes
   useEffect(() => {
@@ -100,6 +109,9 @@ export default function SettingsPage() {
       tempFonts.family !== fonts.family ||
       tempFonts.size !== fonts.size;
     setHasUnsavedChanges(hasChanges);
+    console.log('🎨 Settings: Has unsaved changes:', hasChanges, {
+      tempColors, colors, tempFonts, fonts
+    });
   }, [tempColors, tempFonts, colors, fonts]);
 
   const handleColorChange = (type: 'primary' | 'background', value: string) => {
@@ -112,10 +124,20 @@ export default function SettingsPage() {
   };
 
   const handleSave = () => {
-    console.log('Settings: Saving colors and fonts:', { colors: tempColors, fonts: tempFonts });
-    setColors(tempColors);
-    setFonts(tempFonts);
-    setHasUnsavedChanges(false);
+    try {
+      console.log('🎨 Settings: Starting save process...');
+      console.log('🎨 Current theme context values:', { colors, fonts });
+      console.log('🎨 Temp values to save:', { tempColors, tempFonts });
+      
+      // Use setColors and setFonts from theme context 
+      setColors(tempColors);
+      setFonts(tempFonts);
+      
+      setHasUnsavedChanges(false);
+      console.log('✅ Settings: Theme updated successfully');
+    } catch (error) {
+      console.error('❌ Error saving settings:', error);
+    }
   };
 
   const handleReset = () => {
