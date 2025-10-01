@@ -6,16 +6,19 @@ import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
 
 export default function UsersPage() {
-  const { effectiveTheme } = useTheme();
+  const { effectiveTheme, colors } = useTheme();
   
   return (
     <div 
       className={cn(
-        "h-screen p-4 sm:p-6 transition-colors duration-200 bg-gradient-to-br from-purple-50 via-pink-50 to-rose-50 dark:from-slate-900 dark:via-slate-800 dark:to-purple-900",
+        "h-screen p-4 sm:p-6 transition-colors duration-200",
         effectiveTheme === 'dark' 
           ? "text-slate-100" 
           : "text-slate-900"
-      )} 
+      )}
+      style={{ 
+        backgroundColor: colors.background
+      }}
       data-page="users"
     >
       <Card className={cn(

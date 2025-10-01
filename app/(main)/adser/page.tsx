@@ -473,7 +473,7 @@ const ColorSettingsPopover = memo(({ groupName, teamNames, settings, onSave }: {
 
 // --- Main Page Component ---
 export default function AdserPage() {
-    const { effectiveTheme } = useTheme();
+    const { effectiveTheme, colors } = useTheme();
     const [isClient, setIsClient] = useState(false);
     const [tableDateRange, setTableDateRange] = useState<DateRange | undefined>(undefined);
     const [showBreakdown, setShowBreakdown] = useState(false);
@@ -644,11 +644,14 @@ export default function AdserPage() {
     return (
         <div 
             className={cn(
-                "h-screen p-4 sm:p-6 transition-colors duration-200 bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-slate-900 dark:via-slate-800 dark:to-emerald-900",
+                "h-screen p-4 sm:p-6 transition-colors duration-200",
                 effectiveTheme === 'dark' 
                     ? "text-slate-100" 
                     : "text-slate-900"
             )}
+            style={{ 
+                backgroundColor: colors.background
+            }}
             data-page="adser"
         >
             <Card className={cn(

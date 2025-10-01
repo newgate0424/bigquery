@@ -593,7 +593,7 @@ const ColorSettingsPopover = memo(({ groupName, teamNames, settings, onSave }: {
 });
 
 export default function OverviewPage() {
-  const { effectiveTheme } = useTheme();
+  const { effectiveTheme, colors } = useTheme();
   const { preferences, updateFilterSettings } = useUserPreferences();
   const chartFontSizes = getChartFontSizes();
   const [isClient, setIsClient] = useState(false);
@@ -994,11 +994,14 @@ export default function OverviewPage() {
   return (
     <div 
       className={cn(
-        "h-screen p-4 sm:p-6 transition-colors duration-200 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-indigo-900",
+        "h-screen p-4 sm:p-6 transition-colors duration-200",
         effectiveTheme === 'dark' 
           ? "text-slate-100" 
           : "text-slate-900"
-      )} 
+      )}
+      style={{ 
+        backgroundColor: colors.background
+      }}
       data-page="overview"
     >
       <Card className={cn(

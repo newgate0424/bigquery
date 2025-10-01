@@ -681,28 +681,26 @@ export function FilterSidebar({
     return columnNames[column] || column;
   }, []);
 
-  // Memoize column count calculations - แยกคอลัมน์หลักกับ daily deposits (daily deposits ไม่แสดงในเมนู)
+  // Memoize column count calculations - แยกคอลัมน์หลักเท่านั้น (ไม่มี daily columns แล้ว)
   const { visibleCount, totalCount, mainVisibleCount, mainTotalCount } = React.useMemo(() => {
     const entries = Object.entries(visibleColumns);
-    const mainColumns = entries.filter(([key]) => !key.startsWith('day'));
-    const dailyColumns = entries.filter(([key]) => key.startsWith('day'));
+    // ไม่ต้อง filter daily columns เพราะไม่มีแล้ว
     
     console.log('🔍 FilterSidebar Column summary:');
-    console.log('  - Main columns (displayed in menu):', mainColumns.length);
-    console.log('  - Daily columns (hidden from menu):', dailyColumns.length);
+    console.log('  - Main columns:', entries.length);
     console.log('  - Total columns:', entries.length);
     
     return {
-      visibleCount: mainColumns.filter(([, visible]) => visible).length, // เฉพาะคอลัมน์หลักที่แสดง
-      totalCount: mainColumns.length, // เฉพาะคอลัมน์หลัก
-      mainVisibleCount: mainColumns.filter(([, visible]) => visible).length,
-      mainTotalCount: mainColumns.length
+      visibleCount: entries.filter(([, visible]) => visible).length,
+      totalCount: entries.length,
+      mainVisibleCount: entries.filter(([, visible]) => visible).length,
+      mainTotalCount: entries.length
     };
   }, [visibleColumns]);
   
-  // Memoize column entries to prevent re-creation - เฉพาะคอลัมน์หลัก
+  // Memoize column entries to prevent re-creation
   const columnEntries = React.useMemo(() => {
-    const entries = Object.entries(visibleColumns).filter(([key]) => !key.startsWith('day'));
+    const entries = Object.entries(visibleColumns);
     return entries;
   }, [visibleColumns]);
 
