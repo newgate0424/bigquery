@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 // กำหนดเส้นทางที่ไม่ต้องการ authentication
-const publicPaths = ['/login', '/newgate', '/api/auth/login', '/api/auth/users']
+const publicPaths = ['/login', '/newgate', '/api/auth/login', '/api/auth/users', '/api/exchange-rate']
 
 // กำหนดเส้นทาง API ที่ต้องการ authentication  
 const protectedApiPaths = ['/api/data', '/api/filters', '/api/preferences', '/api/auth/me', '/api/auth/logout']
