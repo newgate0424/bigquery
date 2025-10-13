@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/lib/theme-context"
 import { useUserPreferences } from "@/lib/preferences"
-import { BarChart3, Monitor, Home, Settings, Database, Users, TrendingUp } from "lucide-react"
+import { BarChart3, Monitor, Home, Settings, Database, Users, TrendingUp, CreditCard } from "lucide-react"
 import { useState, useEffect, createContext, useContext } from "react"
 
 // Context สำหรับจัดการ sidebar state
@@ -97,6 +97,11 @@ const sidebarItems = [
     title: "Monitor",
     icon: Monitor,
     href: "/monitor",
+  },
+  {
+    title: "Card Maker",
+    icon: CreditCard,
+    href: "/card-maker",
   },
   {
     title: "Users",
