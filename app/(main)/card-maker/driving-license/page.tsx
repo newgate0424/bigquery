@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Download, RefreshCw, Upload } from "lucide-react";
+import { ArrowLeft, Download, RefreshCw, Upload, Sparkles } from "lucide-react";
 import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
 
@@ -147,9 +147,53 @@ const DrivingLicenseGenerator: React.FC = () => {
     photo: undefined
   });
   const [isGenerating, setIsGenerating] = useState(false);
+  const [useAIPhoto, setUseAIPhoto] = useState(false);
+  const [isLoadingAI, setIsLoadingAI] = useState(false);
+
+  // ฟังก์ชันสุ่มรูปจาก AI ผ่าน API route
+  const generateAIPhoto = async () => {
+    try {
+      // เรียกใช้ API route เพื่อหลีกเลี่ยง CORS
+      const timestamp = new Date().getTime();
+      const response = await fetch(`/api/ai-photo?t=${timestamp}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch AI photo');
+      }
+      
+      const blob = await response.blob();
+      
+      return new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          resolve(reader.result as string);
+        };
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      console.error('Error generating AI photo:', error);
+      return undefined;
+    }
+  };
+
+  // ฟังก์ชันสุ่มรูป AI แบบแยกต่างหาก
+  const handleGenerateAIPhoto = async () => {
+    setIsLoadingAI(true);
+    try {
+      const aiPhoto = await generateAIPhoto();
+      if (aiPhoto) {
+        setCardData(prev => ({ ...prev, photo: aiPhoto }));
+        setUseAIPhoto(true);
+      }
+    } catch (error) {
+      console.error('Error loading AI photo:', error);
+    } finally {
+      setIsLoadingAI(false);
+    }
+  };
 
   // Random data generation function
-  const generateRandomData = () => {
+  const generateRandomData = async () => {
     const { fullName, englishName } = generateRandomName();
     const birthDate = generateRandomDate();
     const today = new Date();
@@ -159,7 +203,15 @@ const DrivingLicenseGenerator: React.FC = () => {
     const issueDate = `${(Math.floor(Math.random() * 28) + 1).toString().padStart(2, '0')}/${(Math.floor(Math.random() * 12) + 1).toString().padStart(2, '0')}/${issueYear}`;
     const expiryDate = `${(Math.floor(Math.random() * 28) + 1).toString().padStart(2, '0')}/${(Math.floor(Math.random() * 12) + 1).toString().padStart(2, '0')}/${expiryYear}`;
     
-    setCardData({
+    // ถ้าเลือกใช้รูป AI ให้สุ่มรูปด้วย
+    let photo = cardData.photo;
+    if (useAIPhoto) {
+      setIsLoadingAI(true);
+      photo = await generateAIPhoto();
+      setIsLoadingAI(false);
+    }
+    
+    const newData = {
       fullName,
       englishName,
       idNumber: generateRandomIdNumber(),
@@ -167,8 +219,10 @@ const DrivingLicenseGenerator: React.FC = () => {
       birthDate,
       issueDate,
       expiryDate,
-      photo: cardData.photo
-    });
+      photo
+    };
+    
+    setCardData(newData);
   };
 
   const handleInputChange = (field: keyof DrivingLicenseData, value: string) => {
@@ -478,6 +532,17 @@ const DrivingLicenseGenerator: React.FC = () => {
     }
   }, [cardData]);
 
+  // Auto-generate card when photo changes
+  useEffect(() => {
+    if (cardData.photo && cardData.fullName) {
+      // รอให้ state update เสร็จก่อน
+      const timer = setTimeout(() => {
+        generateCard();
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [cardData.photo, generateCard]); // ทำงานเมื่อรูปเปลี่ยน
+
   const downloadCard = () => {
     if (!canvasRef.current) return;
     
@@ -642,15 +707,43 @@ const DrivingLicenseGenerator: React.FC = () => {
                           accept="image/*"
                           onChange={handlePhotoUpload}
                           className="flex-1"
+                          disabled={useAIPhoto}
                         />
                         <Button
                           type="button"
                           variant="outline"
                           size="icon"
                           onClick={() => fileInputRef.current?.click()}
+                          disabled={useAIPhoto}
                         >
                           <Upload className="h-4 w-4" />
                         </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={handleGenerateAIPhoto}
+                          disabled={isLoadingAI}
+                          title="สุ่มรูป AI"
+                        >
+                          {isLoadingAI ? (
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Sparkles className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <input
+                          type="checkbox"
+                          id="useAIPhoto"
+                          checked={useAIPhoto}
+                          onChange={(e) => setUseAIPhoto(e.target.checked)}
+                          className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <label htmlFor="useAIPhoto" className="text-sm text-gray-700 cursor-pointer">
+                          ใช้รูป AI (สุ่มอัตโนมัติเมื่อสุ่มข้อมูล)
+                        </label>
                       </div>
                     </div>
 
