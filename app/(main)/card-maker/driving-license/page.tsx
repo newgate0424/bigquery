@@ -15,11 +15,9 @@ interface DrivingLicenseData {
   englishName: string;
   idNumber: string;
   licenseNumber: string;
+  birthDate: string;
   issueDate: string;
   expiryDate: string;
-  birthDate: string;
-  address: string;
-  licenseType: string;
   photo?: string;
 }
 
@@ -39,7 +37,7 @@ const generateRandomDate = (minAge: number = 18, maxAge: number = 80): string =>
   const month = Math.floor(Math.random() * 12) + 1;
   const day = Math.floor(Math.random() * 28) + 1;
   
-  return `${birthYear}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+  return `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${birthYear}`;
 };
 
 const generateRandomName = (): { fullName: string; englishName: string } => {
@@ -119,11 +117,9 @@ const DrivingLicenseGenerator: React.FC = () => {
     englishName: '',
     idNumber: '',
     licenseNumber: '',
+    birthDate: '',
     issueDate: '',
     expiryDate: '',
-    birthDate: '',
-    address: '',
-    licenseType: '1',
     photo: undefined
   });
   const [isGenerating, setIsGenerating] = useState(false);
@@ -136,22 +132,17 @@ const DrivingLicenseGenerator: React.FC = () => {
     const issueYear = today.getFullYear() - Math.floor(Math.random() * 5);
     const expiryYear = issueYear + 5; // ใบขับขี่หมดอายุ 5 ปี
     
-    const issueDate = `${issueYear}-${(Math.floor(Math.random() * 12) + 1).toString().padStart(2, '0')}-${(Math.floor(Math.random() * 28) + 1).toString().padStart(2, '0')}`;
-    const expiryDate = `${expiryYear}-${(Math.floor(Math.random() * 12) + 1).toString().padStart(2, '0')}-${(Math.floor(Math.random() * 28) + 1).toString().padStart(2, '0')}`;
-    
-    const licenseTypes = ['1', '2', '3', '4'];
-    const licenseType = licenseTypes[Math.floor(Math.random() * licenseTypes.length)];
+    const issueDate = `${(Math.floor(Math.random() * 28) + 1).toString().padStart(2, '0')}/${(Math.floor(Math.random() * 12) + 1).toString().padStart(2, '0')}/${issueYear}`;
+    const expiryDate = `${(Math.floor(Math.random() * 28) + 1).toString().padStart(2, '0')}/${(Math.floor(Math.random() * 12) + 1).toString().padStart(2, '0')}/${expiryYear}`;
     
     setCardData({
       fullName,
       englishName,
       idNumber: generateRandomIdNumber(),
       licenseNumber: generateRandomLicenseNo(),
+      birthDate,
       issueDate,
       expiryDate,
-      birthDate,
-      address: generateRandomAddress(),
-      licenseType,
       photo: cardData.photo
     });
   };
@@ -179,19 +170,49 @@ const DrivingLicenseGenerator: React.FC = () => {
 
   const formatDateThai = (dateString: string) => {
     if (!dateString) return '';
-    const date = new Date(dateString);
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const year = (date.getFullYear() + 543).toString();
-    return `${day}/${month}/${year}`;
+    
+    // รองรับรูปแบบ DD/MM/YYYY
+    const parts = dateString.split('/');
+    if (parts.length !== 3) return dateString;
+    
+    const day = parts[0];
+    const month = parts[1];
+    const year = parts[2];
+    
+    const thaiMonths = [
+      'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+      'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+    ];
+    
+    const monthIndex = parseInt(month) - 1;
+    const thaiYear = parseInt(year) + 543;
+    
+    return `${parseInt(day)} ${thaiMonths[monthIndex]} ${thaiYear}`;
+  };
+
+  const formatDateEnglish = (dateString: string) => {
+    if (!dateString) return '';
+    
+    // รองรับรูปแบบ DD/MM/YYYY
+    const parts = dateString.split('/');
+    if (parts.length !== 3) return dateString;
+    
+    const day = parts[0];
+    const month = parts[1];
+    const year = parts[2];
+    
+    const englishMonths = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    
+    const monthIndex = parseInt(month) - 1;
+    
+    return `${parseInt(day)} ${englishMonths[monthIndex]} ${year}`;
   };
 
   const drawTextWithShadow = (ctx: CanvasRenderingContext2D, text: string, x: number, y: number, color: string = '#000000') => {
-    // เงา
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-    ctx.fillText(text, x + 1, y + 1);
-    
-    // ข้อความหลัก
+    // ข้อความหลัก (ไม่มีเงา)
     ctx.fillStyle = color;
     ctx.fillText(text, x, y);
   };
@@ -203,9 +224,10 @@ const DrivingLicenseGenerator: React.FC = () => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // ตั้งค่าขนาด Canvas
-    canvas.width = 1200;
-    canvas.height = 756;
+    // ตั้งค่าขนาด Canvas (ขนาดใหญ่สำหรับการดาวน์โหลด)
+    const scale = 2.0; // ตัวคูณสำหรับขยายขนาด (1200 * 2 = 2400)
+    canvas.width = 2400;
+    canvas.height = 1512; // รักษาสัดส่วน 2400:1512 = 1200:756
 
     try {
       // โหลดเทมเพลต
@@ -222,10 +244,10 @@ const DrivingLicenseGenerator: React.FC = () => {
       ctx.drawImage(templateImg, 0, 0, canvas.width, canvas.height);
 
       // ตั้งค่าฟอนต์ไทย
-      ctx.font = '24px "TH Sarabun PSK", Arial, sans-serif';
+      ctx.font = `${24 * scale}px "TH Sarabun PSK", Arial, sans-serif`;
       ctx.textAlign = 'left';
 
-      // วาดรูปผู้ใช้
+      // วาดรูปผู้ใช้ (ตำแหน่งด้านซ้าย)
       if (cardData.photo) {
         const userImg = new Image();
         userImg.crossOrigin = 'anonymous';
@@ -235,11 +257,11 @@ const DrivingLicenseGenerator: React.FC = () => {
           userImg.src = cardData.photo!;
         });
 
-        // วาดรูปในตำแหน่งที่กำหนด (ปรับตำแหน่งตามเทมเพลต)
-        const photoX = 50;
-        const photoY = 200;
-        const photoWidth = 150;
-        const photoHeight = 180;
+        // วาดรูปในตำแหน่งที่กำหนด (ปรับตามเทมเพลตใบขับขี่ไทย)
+        const photoX = 60 * scale;
+        const photoY = 310 * scale;
+        const photoWidth = 240 * scale;
+        const photoHeight = 300 * scale;
         
         ctx.save();
         ctx.beginPath();
@@ -249,66 +271,181 @@ const DrivingLicenseGenerator: React.FC = () => {
         ctx.restore();
       }
 
-      // วาดข้อมูลใบขับขี่
-      ctx.font = '20px "TH Sarabun PSK", Arial, sans-serif';
+      // วาดข้อมูลใบขับขี่ตามตำแหน่งจริงของเทมเพลต
       
-      // ชื่อ-นามสกุล
-      if (cardData.fullName) {
-        drawTextWithShadow(ctx, cardData.fullName, 250, 250);
-      }
-
-      // ชื่อภาษาอังกฤษ
-      if (cardData.englishName) {
-        ctx.font = '18px Arial, sans-serif';
-        drawTextWithShadow(ctx, cardData.englishName, 250, 280);
-        ctx.font = '20px "TH Sarabun PSK", Arial, sans-serif';
-      }
-
-      // เลขบัตรประชาชน
-      if (cardData.idNumber) {
-        drawTextWithShadow(ctx, `เลขบัตรประชาชน: ${cardData.idNumber}`, 250, 320);
-      }
-
-      // เลขใบขับขี่
+      // เลขใบขับขี่ (ไทย - มุมขวาบน)
+      // font: ขนาด 28px, bold, ตำแหน่ง X: 550, Y: 175
       if (cardData.licenseNumber) {
-        drawTextWithShadow(ctx, `เลขใบขับขี่: ${cardData.licenseNumber}`, 250, 350);
+        ctx.font = `bold ${40 * scale}px Arial, sans-serif`;
+        ctx.textAlign = 'right';
+        drawTextWithShadow(ctx, cardData.licenseNumber, 630 * scale, 184 * scale, '#000000');
       }
-
-      // วันเกิด
-      if (cardData.birthDate) {
-        drawTextWithShadow(ctx, `วันเกิด: ${formatDateThai(cardData.birthDate)}`, 250, 380);
-      }
-
-      // วันออกบัตร
-      if (cardData.issueDate) {
-        drawTextWithShadow(ctx, `วันออกบัตร: ${formatDateThai(cardData.issueDate)}`, 250, 410);
-      }
-
-      // วันหมดอายุ
-      if (cardData.expiryDate) {
-        drawTextWithShadow(ctx, `วันหมดอายุ: ${formatDateThai(cardData.expiryDate)}`, 250, 440);
-      }
-
-      // ประเภทใบขับขี่
-      const licenseTypes: Record<string, string> = {
-        '1': 'รถจักรยานยนต์',
-        '2': 'รถยนต์ส่วนบุคคล', 
-        '3': 'รถบรรทุก',
-        '4': 'รถโดยสาร'
-      };
       
-      if (cardData.licenseType) {
-        drawTextWithShadow(ctx, `ประเภท: ${licenseTypes[cardData.licenseType] || cardData.licenseType}`, 250, 470);
+      // เลขใบขับขี่ (อังกฤษ - ใช้เลขเดียวกัน)
+      // font: ขนาด 40px, ตำแหน่ง X: 930, Y: 175
+      if (cardData.licenseNumber) {
+        ctx.font = `bold ${40 * scale}px Arial, sans-serif`;
+        ctx.textAlign = 'right';
+        drawTextWithShadow(ctx, cardData.licenseNumber, 960 * scale, 186 * scale, '#000000');
+      }
+      
+      // วันออกบัตร (ไทย - Issue Date - ด้านบน)
+      // font: ขนาด 22px, ตำแหน่ง X: 440, Y: 238
+      if (cardData.issueDate) {
+        ctx.font = `bold ${27 * scale}px "TH Sarabun PSK", Arial, sans-serif`;
+        ctx.textAlign = 'left';
+        drawTextWithShadow(ctx, formatDateThai(cardData.issueDate), 480 * scale, 235 * scale, '#000000');
+      }
+      
+      // วันออกบัตร (อังกฤษ)
+      // font: ขนาด 22px, ตำแหน่ง X: 460, Y: 260
+      if (cardData.issueDate) {
+        ctx.font = `bold ${27 * scale}px Arial, sans-serif`;
+        ctx.textAlign = 'left';
+        drawTextWithShadow(ctx, formatDateEnglish(cardData.issueDate), 490 * scale, 262 * scale, '#000000');
+      }
+      
+      // วันหมดอายุ (ไทย - Expiry Date - ด้านบน)
+      // font: ขนาด 22px, ตำแหน่ง X: 850, Y: 240
+      if (cardData.expiryDate) {
+        ctx.font = `bold ${27 * scale}px "TH Sarabun PSK", Arial, sans-serif`;
+        ctx.textAlign = 'left';
+        drawTextWithShadow(ctx, formatDateThai(cardData.expiryDate), 880 * scale, 235 * scale, '#000000');
+      }
+      
+      // วันหมดอายุ (อังกฤษ)
+      // font: ขนาด 22px, ตำแหน่ง X: 870, Y: 260
+      if (cardData.expiryDate) {
+        ctx.font = `bold ${27 * scale}px Arial, sans-serif`;
+        ctx.textAlign = 'left';
+        drawTextWithShadow(ctx, formatDateEnglish(cardData.expiryDate), 890 * scale, 260 * scale, '#000000');
+      }
+      
+      // ชื่อ-นามสกุล (ไทย - ตำแหน่งตรงกลาง)
+      // font: ขนาด 38px, bold, ตำแหน่ง X: 400, Y: 350
+      if (cardData.fullName) {
+        ctx.font = `bold ${38 * scale}px "TH Sarabun PSK", Arial, sans-serif`;
+        ctx.textAlign = 'left';
+        drawTextWithShadow(ctx, cardData.fullName, 430 * scale, 380 * scale, '#000000');
       }
 
-      // ที่อยู่
-      if (cardData.address) {
-        ctx.font = '16px "TH Sarabun PSK", Arial, sans-serif';
-        const addressLines = cardData.address.split('\n');
-        addressLines.forEach((line, index) => {
-          drawTextWithShadow(ctx, line, 250, 510 + (index * 25));
+      // ชื่อภาษาอังกฤษ (ใต้ชื่อไทย)
+      // font: ขนาด 30px, bold, ตำแหน่ง X: 400, Y: 390
+      if (cardData.englishName) {
+        ctx.font = `bold ${30 * scale}px Arial, sans-serif`;
+        ctx.textAlign = 'left';
+        drawTextWithShadow(ctx, cardData.englishName, 430 * scale, 430 * scale, '#000000');
+      }
+
+      // วันเกิด (ไทย - Birth Date)
+      // font: ขนาด 26px, ตำแหน่ง X: 450, Y: 539
+      if (cardData.birthDate) {
+        ctx.font = `bold ${26 * scale}px "TH Sarabun PSK", Arial, sans-serif`;
+        ctx.textAlign = 'left';
+        drawTextWithShadow(ctx, formatDateThai(cardData.birthDate), 490 * scale, 520 * scale, '#000000');
+      }
+      
+      // วันเกิด (อังกฤษ)
+      // font: ขนาด 26px, ตำแหน่ง X: 450, Y: 569
+      if (cardData.birthDate) {
+        ctx.font = `bold ${26 * scale}px Arial, sans-serif`;
+        ctx.textAlign = 'left';
+        drawTextWithShadow(ctx, formatDateEnglish(cardData.birthDate), 490 * scale, 560 * scale, '#000000');
+      }
+      
+      // เลขบัตรประชาชน (ID Number)
+      // font: ขนาด 26px, ตำแหน่ง X: 660, Y: 600
+      // รูปแบบ: X XXXX XXXXX XX X
+      if (cardData.idNumber) {
+        ctx.font = `bold ${26 * scale}px Arial, sans-serif`;
+        ctx.textAlign = 'left';
+        const formattedId = `${cardData.idNumber.slice(0,1)} ${cardData.idNumber.slice(1,5)} ${cardData.idNumber.slice(5,10)} ${cardData.idNumber.slice(10,12)} ${cardData.idNumber.slice(12,13)}`;
+        drawTextWithShadow(ctx, formattedId, 740 * scale, 600 * scale, '#000000');
+      }
+
+      // วาด Hologram 6 จุด
+      const hologramImg = new Image();
+      hologramImg.crossOrigin = 'anonymous';
+      
+      await new Promise((resolve) => {
+        hologramImg.onload = resolve;
+        hologramImg.onerror = () => resolve(null); // ไม่ error ถ้าไม่มีไฟล์
+        hologramImg.src = '/card/th/hologram.png';
+      });
+
+      if (hologramImg.complete && hologramImg.naturalWidth > 0) {
+        // กำหนดตำแหน่งและขนาดของ hologram แต่ละจุด
+        const hologramSize = 250 * scale; // ขนาดของแต่ละจุด (ปรับตาม scale)
+        const hologramPositions = [
+          { x: 10 * scale, y: 150 * scale, opacity: 0.35, brightness: 1.1, rotate: 0 },      // จุดที่ 1 - สว่างกว่า
+          { x: 400 * scale, y: 150 * scale, opacity: 0.15, brightness: 0.85, rotate: 45 },   // จุดที่ 2 - อ่อนลง
+          { x: 800 * scale, y: 150 * scale, opacity: 0.18, brightness: 1.2, rotate: 90 },    // จุดที่ 3 - อ่อนลง
+          { x: 80 * scale, y: 460 * scale, opacity: 0.3, brightness: 0.9, rotate: 180 },     // จุดที่ 4 - กลางๆ
+          { x: 480 * scale, y: 460 * scale, opacity: 0.20, brightness: 1.15, rotate: 270 },  // จุดที่ 5 - อ่อนลง
+          { x: 880 * scale, y: 460 * scale, opacity: 0.16, brightness: 0.95, rotate: 135 },  // จุดที่ 6 - อ่อนลง
+        ];
+
+        // วาด hologram ในแต่ละตำแหน่ง
+        hologramPositions.forEach(pos => {
+          ctx.save();
+          
+          // กำหนดความโปร่งแสง
+          ctx.globalAlpha = pos.opacity;
+          
+          // เลื่อนไปยังจุดกลางของรูป
+          ctx.translate(pos.x + hologramSize / 2, pos.y + hologramSize / 2);
+          
+          // หมุนรูป
+          ctx.rotate((pos.rotate * Math.PI) / 180);
+          
+          // ตั้งค่าฟิลเตอร์สีเทาและความสว่าง
+          ctx.filter = `grayscale(30%) brightness(${pos.brightness})`;
+          
+          // วาดรูปโดยใช้ตำแหน่งที่ปรับแล้ว
+          ctx.drawImage(hologramImg, -hologramSize / 2, -hologramSize / 2, hologramSize, hologramSize);
+          
+          ctx.restore();
         });
       }
+
+      // เพิ่มเอฟเฟกต์ให้ดูเหมือนรูปจากกล้อง
+      // 1. เพิ่ม Film Grain / Noise
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+      
+      for (let i = 0; i < data.length; i += 4) {
+        // เพิ่ม noise เล็กน้อย
+        const noise = (Math.random() - 0.5) * 8; // ค่า noise ระหว่าง -4 ถึง 4
+        data[i] += noise;     // Red
+        data[i + 1] += noise; // Green
+        data[i + 2] += noise; // Blue
+        
+        // ปรับความสว่างเล็กน้อย (vignette effect - มืดที่ขอบ)
+        const x = (i / 4) % canvas.width;
+        const y = Math.floor((i / 4) / canvas.width);
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const distance = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2));
+        const maxDistance = Math.sqrt(Math.pow(centerX, 2) + Math.pow(centerY, 2));
+        const vignette = 1 - (distance / maxDistance) * 0.15; // มืดที่ขอบ 15%
+        
+        data[i] *= vignette;
+        data[i + 1] *= vignette;
+        data[i + 2] *= vignette;
+      }
+      
+      ctx.putImageData(imageData, 0, 0);
+      
+      // 2. ปรับโทนสีให้ดูอบอุ่นขึ้น (warm tone)
+      ctx.globalCompositeOperation = 'overlay';
+      ctx.fillStyle = 'rgba(255, 230, 200, 0.03)'; // สีส้มอ่อนๆ
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.globalCompositeOperation = 'source-over';
+      
+      // 3. ลดความคมชัดเล็กน้อย (slight blur)
+      ctx.filter = 'blur(0.3px)';
+      ctx.drawImage(canvas, 0, 0);
+      ctx.filter = 'none';
 
     } catch (error) {
       console.error('Error generating driving license:', error);
@@ -438,58 +575,37 @@ const DrivingLicenseGenerator: React.FC = () => {
                         <Label htmlFor="birthDate">วันเกิด</Label>
                         <Input
                           id="birthDate"
-                          type="date"
+                          type="text"
                           value={cardData.birthDate}
                           onChange={(e) => handleInputChange('birthDate', e.target.value)}
+                          placeholder="19/02/1990"
                         />
-                      </div>
-
-                      <div>
-                        <Label htmlFor="licenseType">ประเภทใบขับขี่</Label>
-                        <select
-                          id="licenseType"
-                          value={cardData.licenseType}
-                          onChange={(e) => handleInputChange('licenseType', e.target.value)}
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <option value="1">ประเภท 1 - รถจักรยานยนต์</option>
-                          <option value="2">ประเภท 2 - รถยนต์ส่วนบุคคล</option>
-                          <option value="3">ประเภท 3 - รถบรรทุก</option>
-                          <option value="4">ประเภท 4 - รถโดยสาร</option>
-                        </select>
+                        <p className="text-xs text-gray-500 mt-1">รูปแบบ: DD/MM/YYYY</p>
                       </div>
 
                       <div>
                         <Label htmlFor="issueDate">วันออกบัตร</Label>
                         <Input
                           id="issueDate"
-                          type="date"
+                          type="text"
                           value={cardData.issueDate}
                           onChange={(e) => handleInputChange('issueDate', e.target.value)}
+                          placeholder="01/01/2020"
                         />
+                        <p className="text-xs text-gray-500 mt-1">รูปแบบ: DD/MM/YYYY</p>
                       </div>
 
                       <div>
                         <Label htmlFor="expiryDate">วันหมดอายุ</Label>
                         <Input
                           id="expiryDate"
-                          type="date"
+                          type="text"
                           value={cardData.expiryDate}
                           onChange={(e) => handleInputChange('expiryDate', e.target.value)}
+                          placeholder="01/01/2025"
                         />
+                        <p className="text-xs text-gray-500 mt-1">รูปแบบ: DD/MM/YYYY</p>
                       </div>
-                    </div>
-
-                    <div>
-                      <Label htmlFor="address">ที่อยู่</Label>
-                      <textarea
-                        id="address"
-                        value={cardData.address}
-                        onChange={(e) => handleInputChange('address', e.target.value)}
-                        placeholder="123 หมู่ 1 ตำบลบางใหญ่ อำเภอบางใหญ่ จังหวัดนนทบุรี 11140"
-                        rows={3}
-                        className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      />
                     </div>
 
                     <div>
