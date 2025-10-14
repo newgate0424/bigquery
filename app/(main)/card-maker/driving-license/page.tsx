@@ -27,7 +27,31 @@ const generateRandomLicenseNo = (): string => {
 };
 
 const generateRandomIdNumber = (): string => {
-  const digits = Array.from({ length: 13 }, () => Math.floor(Math.random() * 10));
+  // สร้างเลขบัตรประชาชนไทยที่ถูกต้องตามอัลกอริทึม MOD 11
+  // 12 หลักแรกสุ่ม, หลักที่ 13 คำนวณจาก checksum
+  
+  const digits: number[] = [];
+  
+  // สุ่ม 12 หลักแรก
+  for (let i = 0; i < 12; i++) {
+    if (i === 0) {
+      // หลักแรกไม่ควรเป็น 0, 9
+      digits.push(Math.floor(Math.random() * 7) + 1); // 1-7
+    } else {
+      digits.push(Math.floor(Math.random() * 10)); // 0-9
+    }
+  }
+  
+  // คำนวณหลักที่ 13 (check digit) ด้วย MOD 11
+  let sum = 0;
+  for (let i = 0; i < 12; i++) {
+    sum += digits[i] * (13 - i);
+  }
+  
+  const mod = sum % 11;
+  const checkDigit = (11 - mod) % 10;
+  digits.push(checkDigit);
+  
   return digits.join('');
 };
 
