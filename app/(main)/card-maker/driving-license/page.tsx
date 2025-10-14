@@ -455,12 +455,12 @@ const DrivingLicenseGenerator: React.FC = () => {
         // กำหนดตำแหน่งและขนาดของ hologram แต่ละจุด
         const hologramSize = 250 * scale; // ขนาดของแต่ละจุด (ปรับตาม scale)
         const hologramPositions = [
-          { x: 10 * scale, y: 150 * scale, opacity: 0.35, brightness: 1.1, rotate: 0 },      // จุดที่ 1 - สว่างกว่า
-          { x: 400 * scale, y: 150 * scale, opacity: 0.15, brightness: 0.85, rotate: 45 },   // จุดที่ 2 - อ่อนลง
-          { x: 800 * scale, y: 150 * scale, opacity: 0.18, brightness: 1.2, rotate: 90 },    // จุดที่ 3 - อ่อนลง
-          { x: 80 * scale, y: 460 * scale, opacity: 0.3, brightness: 0.9, rotate: 180 },     // จุดที่ 4 - กลางๆ
-          { x: 480 * scale, y: 460 * scale, opacity: 0.20, brightness: 1.15, rotate: 270 },  // จุดที่ 5 - อ่อนลง
-          { x: 880 * scale, y: 460 * scale, opacity: 0.16, brightness: 0.95, rotate: 135 },  // จุดที่ 6 - อ่อนลง
+          { x: 150 * scale, y: 100 * scale, opacity: 0.35, brightness: 1.1, rotate: 0 },      // จุดที่ 1 - สว่างกว่า
+          { x: 480 * scale, y: 100* scale, opacity: 0.15, brightness: 0.85, rotate: 45 },   // จุดที่ 2 - อ่อนลง
+          { x: 880 * scale, y: 100 * scale, opacity: 0.18, brightness: 1.2, rotate: 90 },    // จุดที่ 3 - อ่อนลง
+          { x: 220 * scale, y: 460 * scale, opacity: 0.3, brightness: 0.6, rotate: 180 },     // จุดที่ 4 - กลางๆ
+          { x: 600 * scale, y: 460 * scale, opacity: 0.20, brightness: 1.15, rotate: 270 },  // จุดที่ 5 - อ่อนลง
+          { x: 980 * scale, y: 460 * scale, opacity: 0.16, brightness: 0.95, rotate: 135 },  // จุดที่ 6 - อ่อนลง
         ];
 
         // วาด hologram ในแต่ละตำแหน่ง
