@@ -9,12 +9,14 @@ export default function LoginForm({ onLogin }: { onLogin: (token: string, user: 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setRemainingAttempts(null);
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
@@ -22,7 +24,12 @@ export default function LoginForm({ onLogin }: { onLogin: (token: string, user: 
         body: JSON.stringify({ username, password })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Login failed');
+      if (!res.ok) {
+        if (data.remainingAttempts !== undefined) {
+          setRemainingAttempts(data.remainingAttempts);
+        }
+        throw new Error(data.error || 'Login failed');
+      }
       onLogin(data.token, data.user);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Login failed');
@@ -67,8 +74,13 @@ export default function LoginForm({ onLogin }: { onLogin: (token: string, user: 
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
             {error && (
-              <div className="w-full p-3 bg-red-50 border border-red-200 rounded-md">
-                <p className="text-sm text-red-600">{error}</p>
+              <div className="w-full p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-md">
+                <p className="text-sm text-red-600 dark:text-red-400 font-medium">{error}</p>
+                {remainingAttempts !== null && remainingAttempts > 0 && (
+                  <p className="text-xs text-red-500 dark:text-red-400 mt-1">
+                    คุณสามารถลองได้อีก {remainingAttempts} ครั้ง
+                  </p>
+                )}
               </div>
             )}
             <Button type="submit" className="w-full" disabled={loading}>
