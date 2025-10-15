@@ -11,14 +11,6 @@ export default function CardMaker() {
           <CardTitle className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
             🎫 Card Maker Studio
           </CardTitle>
-          <p className="text-gray-600 text-lg">
-            เครื่องมือสร้างเอกสารจำลองสำหรับการศึกษาและงานออกแบบ
-          </p>
-          <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-yellow-800 text-sm font-medium">
-              ⚠️ หมายเหตุ: เอกสารที่สร้างขึ้นเป็นเพียงแบบจำลองเพื่อการศึกษาเท่านั้น ไม่สามารถใช้เป็นเอกสารทางกฎหมายได้
-            </p>
-          </div>
         </CardHeader>
         
         <CardContent className="p-8">

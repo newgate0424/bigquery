@@ -176,9 +176,7 @@ export default function UserActivityMonitor() {
       {/* Header with Refresh Button */}
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-muted-foreground">
-            อัพเดทอัตโนมัติทุก 3 วินาที
-          </p>
+
         </div>
         <Button 
           onClick={() => fetchData(true)} 
@@ -195,7 +193,7 @@ export default function UserActivityMonitor() {
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">ผู้ใช้ออนไลน์</CardTitle>
+            <CardTitle className="text-sm font-medium">ออนไลน์</CardTitle>
             <Wifi className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
@@ -234,7 +232,7 @@ export default function UserActivityMonitor() {
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="online">
             <Wifi className="h-4 w-4 mr-2" />
-            ผู้ใช้ที่ออนไลน์ ({data.onlineCount})
+            ออนไลน์ ({data.onlineCount})
           </TabsTrigger>
           <TabsTrigger value="logs">
             <Activity className="h-4 w-4 mr-2" />
@@ -248,7 +246,7 @@ export default function UserActivityMonitor() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Wifi className="h-5 w-5 text-green-600" />
-                ผู้ใช้ที่ออนไลน์
+                ออนไลน์
               </CardTitle>
               <CardDescription>รายชื่อผู้ใช้ที่กำลังใช้งานระบบอยู่</CardDescription>
             </CardHeader>
